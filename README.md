@@ -46,7 +46,9 @@ HISTORY
 COMPILATION
 
     The program uses the 'readline' library and include files, and the
-    'glpk' library and include files. It should compile without any problem.
+    'glpk' library and include files. The following line should compile it
+    on linux without any problem:
+        gcc -O3 *.c -lglp -lreadline -o minitip
 
 AUTHOR
 

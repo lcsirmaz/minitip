@@ -154,14 +154,6 @@ inline static void ee_i2(int v1,int v2,double d){
 inline static void ee_i3(int v1,int v2,int v3, double d){
     ee_add(v1|v3,d);ee_add(v2|v3,d);ee_subtr(v3,d);ee_subtr(v1|v2|v3,d);
 }
-#if 0 /* debug */
-static void ee_print(void)
-{int j;
-printf("result: n=%d;  ",ee_n);
-for(j=0;j<ee_n;j++){ printf("%+lg*0x%x",ee_item[j].coeff,ee_item[j].var); }
-printf(" %s\n", ee_type==ent_eq ? "=0":ee_type==ent_ge ? ">=0" : "Markov");
-}
-#endif
 /* convert item_list[] into an entropy expression >=0 or ==0 */
 static int fill_expr(void)
 {int i,j,v; int where; double d;
@@ -241,7 +233,6 @@ static int fill_expr(void)
         }
     }
     ee_n=i;
-//printf("expr: ");for(i=0;i<ee_n;i++)printf("%+lg*%x",ee_item[i].coeff,ee_item[i].var); printf("\n");
     if(ee_n==0){ /* nothing remained */
         harderr(ee_type==ent_eq ? e_SIMPLIFIES_EQ : e_SIMPLIFIES_GE);
     } else if(ee_type==ent_ge){ /* all coeffs are >=0 */
@@ -492,9 +483,8 @@ static int is_orig_expression(void)
    Return value: 0: OK;
    1: some error occurred, syntax_error is filled
    It stores the sequence in item_list[] as well.
-!!! The id table is not touched, should be handled separately ?????
-!!! maybe an extra argument ?????
- */
+   When keep==0 clear the id table, otherwise keep it.
+*/
 #define W_start 0	/* we are at the start */
 #define W_bexpr 1	/* after entropy expression before relation */
 #define W_rel   2	/* just after =, >=, <= */

@@ -516,9 +516,6 @@ static void check_expression(char *src, int with_constraints)
     constr= with_constraints && constraint_no>0
          ? " with the constraints" : "";
     ret=call_lp(compute_expression);
-/*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
-// MAKE THE APPROPRIATE ACTION!!!! don't print if quiet
-// COMPUTE the exit value.
     if(ret==EXPR_TRUE){
         printf("      ==> TRUE%s\n",constr);
     } else if(ret==EXPR_FALSE){
@@ -613,7 +610,6 @@ inline static void print_version(void){printf(
 " is a MINimal Information Theoretic Inequality Prover.\n\n"
 COPYRIGHT
 "\n");}
-
 
 inline static void short_help(void){printf(
 "MINimal Information Theoretic Inequality Prover.  Usage:\n\n"

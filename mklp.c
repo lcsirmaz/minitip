@@ -66,7 +66,7 @@ static char *glp_return_msg(int retval)
 "objective upper limit reached",        // GLP_EOBJUL
 "iteration limit exceeded",             // GLP_EITLIM    *
 "time limit exceeded",                  // GLP_ETMLIM    *
-"no primal feasible solution",          // GLP_ENOPFS
+"no primal feasible solution",          // GLP_ENOPFS    *
 "no dual feasible solution",            // GLP_ENODFS
 "root LP optimum not provided",         // GLP_EROOT
 "search terminated by application",     // GLP_ESTOP
@@ -100,12 +100,10 @@ static void release_glp(void){
 static void init_glp_parameters(void)
 {
     glp_init_smcp(&parm);
-//    parm.meth = GLP_PRIMAL;	// PRIMAL,DUAL,DUALP
-    parm.meth = GLP_DUAL;
+    parm.meth = GLP_DUAL;	// PRIMAL,DUAL,DUALP
     parm.msg_lev = GLP_MSG_ERR; // ORR,ON,ALL,ERR
     parm.pricing = GLP_PT_PSE;	// PSE,STD
-//    parm.r_test = GLP_RT_STD;	// HAR,STD
-    parm.r_test = GLP_RT_HAR;
+    parm.r_test = GLP_RT_HAR;	// HAR,STD
     parm.it_lim = 80000;	// iteration limit
     parm.tm_lim = 10000;	// time limit 10 seconds
     parm.out_frq = 80000;	// output frequency
@@ -293,8 +291,6 @@ char *call_lp(int next_expr(int))
             constraints+=entropy_expr.n-3;
         }
         add_expr_variables();
-
-
     }
     /* figure out final variables and the number of rows */
     do_variable_assignment(); /* rows, cols, number of shannon */
@@ -334,12 +330,16 @@ char *call_lp(int next_expr(int))
     init_glp_parameters();
     glp_adv_basis(P,0);   /* generate the first basis */
     glp_res=glp_simplex(P,&parm);
-    if(glp_res){ // error, return the error message
+    switch(glp_res){
+  case 0:            glp_res=glp_get_status(P); break;
+  case GLP_ENOPFS:
+  case GLP_ENODFS:
+  case GLP_ENOFEAS:  glp_res=GLP_NOFEAS; break;
+  default:
         release_glp();
         if(rowperm){ free(rowperm); rowperm=NULL; }
         return glp_return_msg(glp_res);
     }
-    glp_res=glp_get_status(P);
     switch(glp_res){
   case GLP_OPT:    retval=EXPR_TRUE; break;
   case GLP_NOFEAS: retval=EXPR_FALSE; break;
@@ -349,7 +349,6 @@ char *call_lp(int next_expr(int))
         return glp_status_msg(glp_res);
     }
     if( goal_type==ent_eq){ // call it again with changing sign
-//      printf("call glp again to check <=, but not done yet\n");
         next_expr(-1); // reload the problem
         for(i=0;i<entropy_expr.n;i++){
             row_idx[i+1]=varidx(entropy_expr.item[i].var);
@@ -359,11 +358,15 @@ char *call_lp(int next_expr(int))
         if(rowperm){ free(rowperm); rowperm=NULL; } /* release this */
         glp_adv_basis(P,0);
         glp_res=glp_simplex(P,&parm);
-        if(glp_res){ // error
+        switch(glp_res){
+      case 0:           glp_res=glp_get_status(P); break;
+      case GLP_ENOPFS:
+      case GLP_ENODFS:
+      case GLP_ENOFEAS: glp_res=GLP_NOFEAS; break;
+      default:
             release_glp();
             return glp_return_msg(glp_res);
         }
-        glp_res=glp_get_status(P);
         switch(glp_res){
       case GLP_OPT:     if(retval==EXPR_FALSE) retval=EQ_LE_ONLY;
                         break;

@@ -14,8 +14,8 @@ glpk (gnu linear programming kit) as the LP solver.
 #### USAGE
 
 When the command line contains an entropy expression, it is checked for
-validity. Additional constraints can be specified as additional arguments.
-Example:
+validity (see the section [METHOD](#method) below). Additional constraints
+can be specified as additional arguments. Example:
 
     PROMPT> minitip '[a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0'
     [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0
@@ -26,9 +26,9 @@ Example:
          ==> TRUE with the constraints
 
 The single quotes around the arguments prevent the shell from interpreting 
-the special symbols =, \<, \|, (, and ) in the formula.
+the special symbols, such as  =, \<, \|, (, and ).
 
-The entropy expressions were entered using the **simple** style:
+Entropy expressions were entered using the **simple** style:
 [a,b,c,d] is the Ingleton expression
 *-I(a;b)+I(a;b|c)+I(a;b|d)+I(c;d)*; letters *H* and *I* indicating entropy
 and mutual information are omitted; and comma (,) is used as a separator
@@ -58,6 +58,9 @@ at the terminal. Here is an example session.
     minitip: list
     --- Constraints (total 1)
       1: (e,ad|bc)=0
+    minitip: check [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|)>=0
+    ----------------------------------------------^
+    ERROR: variable list is expected here
     minitip: check [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0
           ==> TRUE with the constraints
     minitip: checkw [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0
@@ -74,9 +77,9 @@ Accepted flags and return values are:
 | -h    | print short help and quit |
 | -s    | use **minimal** style (default) |
 | -S    | use **full** style |
-| -q    | quiet, just check, don't print anything |
+| -q    | quiet, just check, don't print anything. Must have an argument to check |
 | -f \<file\> | use \<file\> as the history file (default: **.minitip**) |
-| -v    | version and copyright |
+| -v    | print version, copyright, and quit |
 
 | Return values | (when checking validity of the first argument) |
 | :-------- | :-------------|
@@ -99,13 +102,13 @@ the answer to the following question:
 > from the given constraints?
 
 and **not** whether the given inequality is a valid entropy inequality (that is,
-it holds for arbitrary collection of random variables).
+holds for arbitrary collection of random variables).
 
 The size of the LP problem can be very big. Using 10 random variables there
 will be 1023 entropies (one for all nonempty subsets), and over 11500 Shannon
 inequalities. The Shannon inequalities form a numerically ill-conditioned 
 (highly degenerate) LP instance, thus, from time to time, any LP solver will
-give erroneous answer.
+give erroneous answer. Please watch for these cases.
 
 #### HISTORY
 

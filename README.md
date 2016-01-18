@@ -25,19 +25,20 @@ Example:
     [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0
          ==> TRUE with the constraints
 
-The entropy expressions were entered using the *simple* style:
+The single quotes around the arguments prevent the shell from interpreting 
+the special symbols =, \<, \|, (, and ) in the formula.
+
+The entropy expressions were entered using the **simple** style:
 [a,b,c,d] is the Ingleton expression
-*-I(a;b)+I(a;b|c)+I(a;b|d)+I(c;d),* letters *H* and *I* indicating entropy
-and mutual information are omitted, and comma (,) is used as a separator
-instead of semicolon (;).  The single quote around the arguments prevents
-the shell from interpreting the special symbols in the formula. For *full
-style* use the flag **-S** as follows:
+*-I(a;b)+I(a;b|c)+I(a;b|d)+I(c;d)*; letters *H* and *I* indicating entropy
+and mutual information are omitted; and comma (,) is used as a separator
+instead of semicolon (;). For **full style** use the flag **-S** as follows:
 
     PROMPT> minitip -S '[a;b;c;d]+I(e;b|c)+I(e;c|b)+((b;c|e)>=-3*I(e;a,d|b,c)'
     [a;b;c;d]+I(e;b|c)+I(e;c|b)+I(b;c|e)>=-3*I(e;a,d|b,c)
          ==> TRUE
 
-In *interactive* usage, entropy expressions and constraints are entered
+In interactive usage entropy expressions and constraints are entered
 at the terminal. Here is an example session.
 
     PROMPT> minitip
@@ -66,16 +67,18 @@ at the terminal. Here is an example session.
     Save the commands to the history file .minitip (y/n)? n
     PROMPT> 
 
-| Flags |      |
+Accepted flags and return values are:
+
+| Flag  | meaning  |
 |:------|:-----| 
-| -h    | list accepted flags |
-| -s    | use *minimal* style (default) |
-| -S    | use *full* style |
-| -q    | quiet, just check, don't print anything (see return values) |
+| -h    | print short help and quit |
+| -s    | use **minimal** style (default) |
+| -S    | use **full** style |
+| -q    | quiet, just check, don't print anything |
 | -f \<file\> | use \<file\> as the history file (default: **.minitip**) |
 | -v    | version and copyright |
 
-| Return values | when checking validity of the first argument |
+| Return values | (when checking validity of the first argument) |
 | :-------- | :-------------|
 | 0         | the expression (with the given constraints) checked TRUE |
 | 1         | the expression (with the given constraints) checked FALSE |
@@ -85,11 +88,24 @@ at the terminal. Here is an example session.
 
 #### METHOD
 
-Collecting all random variables in the expression (and constraints), first
+After collecting all random variables in the expression (and constraints), 
 the program creates all Shannon entropy inequalities for those variables.
 Then checks whether the expression is a consequence of the constraints and
 the Shannon inequalities. It is done by creating a Linear Program instance,
-and calling and LP solver.
+and calling and LP solver. Thus the result printed out by the program is
+the answer to the following question:
+
+> Does this inequality follow from the (basic) Shannon inequalities, and
+> from the given constraints?
+
+and **not** whether the given inequality is a valid entropy inequality (that is,
+it holds for arbitrary collection of random variables).
+
+The size of the LP problem can be very big. Using 10 random variables there
+will be 1023 entropies (one for all nonempty subsets), and over 11500 Shannon
+inequalities. The Shannon inequalities form a numerically ill-conditioned 
+(highly degenerate) LP instance, thus, from time to time, any LP solver will
+give erroneous answer.
 
 #### HISTORY
 

@@ -16,28 +16,31 @@ glpk (gnu linear programming kit) as the LP solver.
 When the command line contains an entropy expression, it is checked for
 validity. Additional constraints can be specified as additional arguments.
 Example:
+
     PROMPT> minitip '[a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0'
     [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0
          ==> FALSE
-    PROMPT>  minitip '[a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0' '(e,ad|bc)=0'
+    
+    PROMPT> minitip '[a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0' '(e,ad|bc)=0'
     [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0
          ==> TRUE with the constraints
+
 The entropy expressions were entered using the *simple* style:
-`[a,b,c,d]` is the Ingleton expression
+[a,b,c,d] is the Ingleton expression
 *-I(a;b)+I(a;b|c)+I(a;b|d)+I(c;d),* letters *H* and *I* indicating entropy
 and mutual information are omitted, and comma (,) is used as a separator
 instead of semicolon (;).  The single quote around the arguments prevents
 the shell from interpreting the special symbols in the formula. For *full
-style* use the flag `-S` as follows:
+style* use the flag **-S** as follows:
 
-    PROMPT> __minitip -S '[a;b;c;d]+I(e;b|c)+I(e;c|b)+((b;c|e)>=-3*I(e;a,d|b,c)'__
+    PROMPT> minitip -S '[a;b;c;d]+I(e;b|c)+I(e;c|b)+((b;c|e)>=-3*I(e;a,d|b,c)'
     [a;b;c;d]+I(e;b|c)+I(e;c|b)+I(b;c|e)>=-3*I(e;a,d|b,c)
          ==> TRUE
 
-In interactive usage, entropy expressions and constraints are entered
+In *interactive* usage, entropy expressions and constraints are entered
 at the terminal. Here is an example session.
 
-    PROMPT> __minitip__
+    PROMPT> minitip
     minitip: help
      quit            quit minitip
      help            display this text
@@ -62,6 +65,23 @@ at the terminal. Here is an example session.
     minitip: quit
     Save the commands to the history file .minitip (y/n)? n
     PROMPT> 
+
+| Flags |      |
+|:------|:-----| 
+| -h    | list accepted flags |
+| -s    | use *minimal* style (default) |
+| -S    | use *full* style |
+| -q    | quiet, just check, don't print anything (see return values) |
+| -f <file> | use <file> as the history file (default: \'.minitip\') |
+| -v    | version and copyright |
+
+| Return values | when checking validity of the first argument |
+| :-------- | :-------------|
+| 0         | the expression (with the given constraints) checked TRUE |
+| 1         | the expression (with the given constraints) checked FALSE |
+| 2         | syntax error in the expression or in some of the constraints |
+| 3         | some error (problem too large, LP failure, etc) |
+
 
 #### METHOD
 

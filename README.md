@@ -72,7 +72,7 @@ at the terminal. Here is an example session.
 | -s    | use *minimal* style (default) |
 | -S    | use *full* style |
 | -q    | quiet, just check, don't print anything (see return values) |
-| -f <file> | use <file> as the history file (default: \'.minitip\') |
+| -f \<file\> | use \<file\> as the history file (default: **.minitip**) |
 | -v    | version and copyright |
 
 | Return values | when checking validity of the first argument |

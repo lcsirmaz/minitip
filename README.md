@@ -3,7 +3,6 @@
 The original ITIP software (which runs under MATLAB) was developed by
 Raymond W. Yeung and Ying-On Yan; it is available at
 http://user-www.ie.cuhk.edu.hk/~ITIP/
-
 The stand-alone version Xitip at http://xitip.epfl.ch has graphical
 interface, and runs both in Windows and Linux.
 
@@ -26,8 +25,7 @@ can be specified as additional arguments. Example:
          ==> TRUE with the constraints
 
 The single quotes around the arguments prevent the shell from interpreting 
-the special symbols, such as  =, \<, \|, (, and ).
-
+special symbols, such as  =, \<, \|, (, and ).
 Entropy expressions were entered using the **simple** style:
 [a,b,c,d] is the Ingleton expression
 *-I(a;b)+I(a;b|c)+I(a;b|d)+I(c;d)*; letters *H* and *I* indicating entropy
@@ -86,7 +84,7 @@ Accepted flags and return values are:
 | 0         | the expression (with the given constraints) checked TRUE |
 | 1         | the expression (with the given constraints) checked FALSE |
 | 2         | syntax error in the expression or in some of the constraints |
-| 3         | some error (problem too large, LP failure, etc) |
+| 3         | other error (problem too large, LP failure, etc) |
 
 
 #### METHOD
@@ -108,7 +106,7 @@ The size of the LP problem can be very big. Using 10 random variables there
 will be 1023 entropies (one for all nonempty subsets), and over 11500 Shannon
 inequalities. The Shannon inequalities form a numerically ill-conditioned 
 (highly degenerate) LP instance, thus, from time to time, any LP solver will
-give erroneous answer. Please watch for these cases.
+give erroneous answer. Please watch for those cases.
 
 #### HISTORY
 

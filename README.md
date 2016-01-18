@@ -29,12 +29,14 @@ and mutual information are omitted, and comma (,) is used as a separator
 instead of semicolon (;).  The single quote around the arguments prevents
 the shell from interpreting the special symbols in the formula. For *full
 style* use the flag `-S` as follows:
-    PROMPT> minitip -S '[a;b;c;d]+I(e;b|c)+I(e;c|b)+((b;c|e)>=-3*I(e;a,d|b,c)'
+
+    PROMPT> __minitip -S '[a;b;c;d]+I(e;b|c)+I(e;c|b)+((b;c|e)>=-3*I(e;a,d|b,c)'__
     [a;b;c;d]+I(e;b|c)+I(e;c|b)+I(b;c|e)>=-3*I(e;a,d|b,c)
          ==> TRUE
 
 In interactive usage, entropy expressions and constraints are entered
 at the terminal. Here is an example session.
+
     PROMPT> __minitip__
     minitip: help
      quit            quit minitip

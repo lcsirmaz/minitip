@@ -587,6 +587,20 @@ static int check_offline(int argc, char *argv[], int quiet)
 }
 
 /*===========================================================*/
+/* initialize and extract some randomness */
+#include <time.h>
+#include <unistd.h>
+static void initialize_random(void)
+{    srandom(time(NULL) ^ getpid()); }
+static void extract_randomness(const char *from)
+{int i=0x1234;
+    for(i=0x1234;*from;from++){
+        i=((i*7)+(unsigned char)(*from))&0xffff;
+    }
+    i%=1003;
+    while(i){random();i--; }
+}
+/*===========================================================*/
 
 /* store only if the line is not among the last 10 stored */
 static void store_if_not_new(char *line)
@@ -597,7 +611,7 @@ static void store_if_not_new(char *line)
     hl=history_list();
     if(hl){
       for(total=0;hl[total]!=NULL; total++);
-      for(i=0; total>0 && i<10; i++){
+      for(i=0; total>0 && i<5; i++){
         total--;
         if(hl[total] && strcmp(line,hl[total]->line)==0) return;
       }
@@ -667,10 +681,12 @@ int main(int argc, char *argv[])
     }
     if(quietflag || endargs) return EXIT_ERROR; /* -q or -c flag and no argument */
     initialize_readline();
+    initialize_random();
     set_syntax_style(minitip_style);
     for(done=0;!done;){
         line=readline(PROMPT);
         if(!line) break;
+        extract_randomness(line);
         execute_cmd(line);
         store_if_not_new(line);
         free(line);

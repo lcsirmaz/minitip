@@ -622,6 +622,7 @@ inline static void short_help(void){printf(
 "   -s        -- use minimal style (default)\n"
 "   -S        -- use full style\n"
 "   -q        -- quiet, just check, don't print anything\n"
+"   -e        -- last flag, use when the expression starts with '-'\n"
 "   -f <file> -- use <file> as the history file (default: '" DEFAULT_HISTORY_FILE "')\n"
 "   -v        -- version and copyright\n"
 "\n"
@@ -635,10 +636,10 @@ inline static void short_help(void){printf(
 }
 
 int main(int argc, char *argv[])
-{char *line; int i; int quietflag;
+{char *line; int i; int quietflag, endargs;;
     /* argument handling */
-    quietflag=0;
-    for(i=1; i<argc && argv[i][0]=='-';i++){
+    quietflag=0; endargs=0;
+    for(i=1; i<argc && endargs==0 && argv[i][0]=='-';i++){
         switch(argv[i][1]){
       case 'h': short_help(); return EXIT_INFO;
       case 'v': print_version(); return EXIT_INFO;
@@ -657,13 +658,14 @@ int main(int argc, char *argv[])
                 }
                 break;
       case 'q': quietflag=1; break;
+      case 'e': endargs=1; break;
       default:  printf("unknown flag '%s', use '-help' for help\n",argv[i]); return EXIT_ERROR;
         }
     }
     if(i<argc){ /* further arguments; do as instructed */
         return check_offline(argc-i,argv+i,quietflag);
     }
-    if(quietflag) return EXIT_ERROR; /* -q flag and no argument */
+    if(quietflag || endargs) return EXIT_ERROR; /* -q or -c flag and no argument */
     initialize_readline();
     set_syntax_style(minitip_style);
     for(done=0;!done;){

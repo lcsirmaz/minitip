@@ -76,6 +76,7 @@ Accepted flags and return values are:
 | -s    | use **minimal** style (default) |
 | -S    | use **full** style |
 | -q    | quiet, just check, don't print anything. Must have an argument to check |
+| -e    | last flag, use when the expression starts with minus sign |
 | -f \<file\> | use \<file\> as the history file (default: **.minitip**) |
 | -v    | print version, copyright, and quit |
 

@@ -8,6 +8,7 @@
    mutual             I(<v1>;<v2>)            (<v1>,<v2>)
    cond.mutual        I(<v1>;<v2>|<v3>)       (<v1>,<v2>|<v3>)
    Ingleton           [<v1>;<v2>;<v3>,<v4>]   [<v1>,<v2>,<v3>,<v4>]
+   Delta              D(<v1>;<v2>;<v3>)       D(<v1>,<v2>,<v3>)
 
    Expression:   [+-]<multiplier>[*]<entropy>
    relation:     <expression> [= | >= | <= ] <expression>
@@ -64,6 +65,7 @@ typedef enum {  /* type of the constrain/expression */
     ent_eq,	/* equal */
     ent_ge,	/* greater than or equal to zero */
     ent_Markov,	/* Markov chain */
+    end_diff,	/* show difference */
 } expr_type_t;
 
 struct entropy_expr_t { /* the expression itself */
@@ -86,4 +88,8 @@ extern struct entropy_expr_t entropy_expr;
    1: some error, syntax_error is filled */
 int parse_entropy(char *str, int keep);
 int parse_constraint(char *str, int keep);
+
+int parse_diff(char *str);
+void print_expression(void);
+
 

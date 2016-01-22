@@ -40,20 +40,24 @@ static void harderr(char *err){
 #define e_VAR_EXPECTED  "variable is expected after a comma (,)"
 #define e_GREATER	"> symbol should be followed by ="
 #define e_LESS		"< symbol should be followed by ="
-#define e_INGLETONVAR	"in Ingleton expression wrong variable list"
-#define e_INGLETONSEP	"in Ingleton expression separator is expected here"
-#define e_INGLETONCLOSE	"in Ingleton expression closing ] is missing"
+#define e_INGLETONVAR	"in 'Ingleton' expression variable list is expected here"
+#define e_INGLETONSEP	"in 'Ingleton' expression separator is expected here"
+#define e_INGLETONCLOSE	"in 'Ingleton' expression closing ] is missing here"
+#define e_DELTAVAR	"in 'Delta' expression variable list is expected here"
+#define e_DELTAVARSEP	"in 'Delta' expression separator is expected here"
+#define e_DELTACLOSE	"in 'Delta' expression closing ) is expected here"
 #define e_CONDEXPR	"( should be followed by a variable list"
 #define e_IEXPR2	"variable list is missing after | symbol"
 #define e_CLOSING	"closing parenthesis ')' is expected here"
 #define e_COMMA_OR_BAR	"either ',' or '|' is expected here"
-#define e_VARLIST	"variable list is expected here"
+#define e_VARLIST	"variable list is expected"
 #define e_OPEN_AFTERH	"'H' must be followed by '('"
 #define e_OPEN_AFTERI	"'I' must be followed by '('"
-#define e_SEMICOLON	"a separator ';' is expected here"
+#define e_SEMICOLON	"a separator ';' is expected"
 
 #define e_PLUSORMINUS	"either '+' or '-' is expected here"
 #define e_DOUBLE_REL	"only one relation is allowed in an expression"
+#define e_DIFF_USEEQ	"use '=' to separate the expressions (diff)"
 #define e_WRONGITEM	"unrecognized character"
 #define e_NOHOMOGEN	"constant before or after the relation sign must be zero"
 #define e_WRONGAST	"multiplication symbol '*' at a wrong place"
@@ -104,6 +108,7 @@ typedef enum {
    I2,		/* (a,b) */
    I3,		/* (a,b|c)*/
    Ing,		/* [a,b,c,d], Ingleton */
+   Delta,	/* D(a,b,c), delta function */
    Func,	/* a:b  a is a function of b: ab=b */
    Indep,	/* a.b or a||b (independent); at least two  */
    Markov,	/* a / b / c  or a->b->c; at least three.. */
@@ -124,6 +129,50 @@ inline static void advance_item(void){
         softerr(e_TOO_MANY_ITEMS);
         next_item--;
     }
+}
+/*-----------------------------------------------------------------*/
+/* identifier handling */
+
+struct { char id[minitip_MAX_ID_LENGTH+1]; }id_table [minitip_MAX_ID_NO+1];
+static int id_table_idx=0; /* next empty slot */
+
+static int search_id(const char *var)
+{int i;
+    for(i=0;i<id_table_idx;i++){
+        if(strcmp(id_table[i].id,var)==0) return i;
+    }
+    id_table_idx++;
+    if(id_table_idx>=minitip_MAX_ID_NO){
+        softerr(e_TOO_MANY_ID);
+        id_table_idx--;
+    } else {
+        strncpy(id_table[id_table_idx-1].id,var,minitip_MAX_ID_LENGTH);
+    }
+    return id_table_idx-1;
+}
+/* return the character representation of the variable list
+   in one of the two static slots */
+#define MAX_REPR_LENGTH 201	/* longer list is not understandable; >= 26 */
+static char *get_idlist_repr(int v, int slotno)
+{static char slot1[MAX_REPR_LENGTH+2], slot2[MAX_REPR_LENGTH+2];
+ char *slot; const char *var; int i,j;
+    slot= slotno==1 ? slot1 : slot2;
+    for(i=0,j=0;v!=0;i++,v>>=1){
+        if(v&1){
+            if(X_style==SIMPLE){ /* simple case */
+                slot[j]='a'+i; j++;
+            } else {
+                if(j>0){ slot[j]=',';  /* comma separated list */
+                         if(j<MAX_REPR_LENGTH) j++;
+                }
+                for(var=i<id_table_idx ? id_table[i].id : "?";*var;var++){
+                    slot[j]=*var;
+                    if(j<MAX_REPR_LENGTH)j++;
+                }
+            }
+        }
+    }
+    slot[j]=0; return slot;
 }
 /*-----------------------------------------------------------------*/
 /* generating matrix columns */
@@ -155,7 +204,7 @@ inline static void ee_i3(int v1,int v2,int v3, double d){
     ee_add(v1|v3,d);ee_add(v2|v3,d);ee_subtr(v3,d);ee_subtr(v1|v2|v3,d);
 }
 /* convert item_list[] into an entropy expression >=0 or ==0 */
-static int fill_expr(void)
+static int fill_expr(int diff)
 {int i,j,v; int where; double d;
     if(syntax_error.softerrstr || syntax_error.harderrstr) return 1;
     switch(item_list[0].item_type){ /* special cases */
@@ -221,6 +270,11 @@ static int fill_expr(void)
        ee_i3(item_list[i].var1,item_list[i].var2,item_list[i].var3,d);
        ee_i3(item_list[i].var1,item_list[i].var2,item_list[i].var4,d);
        break;
+   case Delta: 	/* D(a,b,c), Delta: (a,b|c)+(b,c|a)+(c,a|b) */
+       ee_i3(item_list[i].var1,item_list[i].var2,item_list[i].var3,d);
+       ee_i3(item_list[i].var2,item_list[i].var3,item_list[i].var1,d);
+       ee_i3(item_list[i].var3,item_list[i].var1,item_list[i].var2,d);
+       break;
    default:
        must(0,e_INTERNAL);
     }}
@@ -230,40 +284,67 @@ static int fill_expr(void)
             if(i!=j){ee_item[i].var=ee_item[j].var;
                      ee_item[i].coeff=ee_item[j].coeff; }
             i++;
+        } else {
+           ee_item[j].coeff=0.0;
         }
     }
     ee_n=i;
-    if(ee_n==0){ /* nothing remained */
+    if(diff==0){
+      if(ee_n==0){ /* nothing remained */
         harderr(ee_type==ent_eq ? e_SIMPLIFIES_EQ : e_SIMPLIFIES_GE);
-    } else if(ee_type==ent_ge){ /* all coeffs are >=0 */
+      } else if(ee_type==ent_ge){ /* all coeffs are >=0 */
         where=1; for(i=0;i<ee_n;i++)if(ee_item[i].coeff<0.0) where=0;
         must(where==0,e_POSCOMBINATION);
+      }
     }
     return (syntax_error.softerrstr|| syntax_error.harderrstr) ? 1 : 0;
 }
+inline static int bitno(int v)
+{int i;
+    for(i=0;v;v>>=1){
+        if(v&1)i++;
+    }
+    return i;
+}
+/* use bubble sort to sort the expression in ee_item by variables */
+static void sort_expr_by_variables(void)
+{int i,working; int v1,v2; double cf;
+    working=1;
+    while(working){
+        working=0;
+        for(i=0;i<ee_n-1;i++){
+            v1=ee_item[i].var; v2=ee_item[i+1].var;
+            if(bitno(v1)>bitno(v2) ||
+               (bitno(v1)==bitno(v2) &&
+                  strcmp(get_idlist_repr(v1,1),get_idlist_repr(v2,2))>0) ){
+                working=1;
+                ee_item[i].var=v2; ee_item[i+1].var=v1;
+                cf=ee_item[i].coeff; ee_item[i].coeff=ee_item[i+1].coeff; ee_item[i+1].coeff=cf;
+            }
+        }
+    }
+}
+/* print out the expression in ee_item */
+void print_expression(void)
+{int i; double d;
+    if(ee_n<=0){ printf("0"); return; }
+    sort_expr_by_variables();
+    for(i=0;i<ee_n;i++){
+        d=ee_item[i].coeff;
+        if(d<1.0+1e-9 && d>1.0-1e-9){ printf("+"); }
+        else if(d<-1.0+1e-9 && d>-1.0-1e-9){ printf("-"); }
+        else {printf("%+lg",d); }
+        if(X_style==SIMPLE){
+            printf("%s",get_idlist_repr(ee_item[i].var,1));
+        } else {
+            printf("H(%s)",get_idlist_repr(ee_item[i].var,1));
+        }
+    }
+}
+
 #undef ee_n
 #undef ee_item
 #undef ee_type
-/*-----------------------------------------------------------------*/
-/* identifier handling */
-
-struct { char id[minitip_MAX_ID_LENGTH+1]; }id_table [minitip_MAX_ID_NO+1];
-static int id_table_idx=0; /* next empty slot */
-
-static int search_id(const char *var)
-{int i;
-    for(i=0;i<id_table_idx;i++){
-        if(strcmp(id_table[i].id,var)==0) return i;
-    }
-    id_table_idx++;
-    if(id_table_idx>=minitip_MAX_ID_NO){
-        softerr(e_TOO_MANY_ID);
-        id_table_idx--;
-    } else {
-        strncpy(id_table[id_table_idx-1].id,var,minitip_MAX_ID_LENGTH);
-    }
-    return id_table_idx-1;
-}
 /*-------------------------------------------------------------*/
 /* parsing routines */
 /* next_chr()    advances the position to the next non-space char
@@ -278,6 +359,7 @@ static int search_id(const char *var)
    is_varlist(v) reads a list of variables into v
    is_relation(v) checks if this is a '=', '<=' or '>='
    is_Ingletion() stores an Ingleton form in the next item
+   is_Delta()
    is_simple_expression()
    is_orig_expression()
                   stores an entropy expression in the next item
@@ -425,6 +507,23 @@ static int is_Ingleton(void)
     }
     return 0;
 }
+static int is_Delta(void)
+{int oldpos; char sep; /* separator character */
+    sep = X_style==SIMPLE ? ',':';';
+    oldpos=X_pos;
+    if(R('D') && R('(')){
+        item_list[next_item].item_type=Delta;
+        must(is_varlist(&item_list[next_item].var1),e_DELTAVAR);
+        must(R(sep),e_DELTAVARSEP);
+        must(is_varlist(&item_list[next_item].var2),e_DELTAVAR);
+        must(R(sep),e_DELTAVARSEP);
+        must(is_varlist(&item_list[next_item].var3),e_DELTAVAR);
+        must(R(')'),e_DELTACLOSE);
+        return 1;
+    }
+    restore_pos(oldpos);
+    return 0;
+}
 /* add next expression to item_list[next_item] */
 static int is_simple_expression(void)
 {   if(R('(')){ /* (a,b)  (a|b)  (a,b|c) */
@@ -489,7 +588,7 @@ static int is_orig_expression(void)
 #define W_bexpr 1	/* after entropy expression before relation */
 #define W_rel   2	/* just after =, >=, <= */
 #define W_aexpr 3	/* after entropy expression after a relation */
-int parse_entropy(char *str, int keep)
+static int parse_entropyexpr(char *str, int keep, int diff)
 {int where;     /* where we are */
  double coeff;  /* the coeff for the next symbol */
  int i,iscoeff; item_type_t relsym;
@@ -503,6 +602,7 @@ int parse_entropy(char *str, int keep)
            where=W_rel;
            item_list[next_item].item_type=relsym;
            advance_item();
+           if(diff) must(relsym==equal,e_DIFF_USEEQ);
            continue;
        }
        if(where!=W_start && where !=W_rel){
@@ -514,7 +614,7 @@ int parse_entropy(char *str, int keep)
        } else { coeff=1.0; }
        if((X_style==SIMPLE && is_simple_expression()) ||
           (X_style==ORIGINAL && is_orig_expression()) ||
-          is_Ingleton() ){
+          is_Ingleton() || is_Delta() ){
           item_list[next_item].multiplier=coeff;
           if(where==W_start) where=W_bexpr;
           if(where==W_rel) where=W_aexpr;
@@ -552,15 +652,22 @@ int parse_entropy(char *str, int keep)
     where=0;
     for(i=0;i<next_item;i++)switch(item_list[i].item_type){
         case equal: case greater: case less: case zero: break;
-        default: if(item_list[i].multiplier!=0.0) where=1;
+        default: 
+           if(item_list[i].multiplier>1.5e-10 ||
+              item_list[i].multiplier<-1.5e-10){  where=1; }
+           else { item_list[i].multiplier = 0.0; }
     }
     must(where,e_ALLZERO);
-    return fill_expr();
+    return fill_expr(diff);
 }
 #undef W_start
 #undef W_bexpr
 #undef W_rel
 #undef W_aexpr
+
+int parse_entropy (char *str, int keep)
+{    return parse_entropyexpr(str,keep,0); }
+
 /*-------------------------------------------------------------*/
 /* parse a constrain. It can be:
    a) <v1> : <v2>        -- <v1> is a function of <v2>
@@ -578,7 +685,7 @@ static int is_func(int v1,int v2){
     item_list[next_item].var2=v2;
     advance_item();
     must(X_chr==0,e_EXTRA_TEXT);
-    return fill_expr();
+    return fill_expr(0);
 }
 static int is_indep(char sep, int v1,int v2)
 {int v; int oldpos; int i,j;
@@ -611,7 +718,7 @@ static int is_indep(char sep, int v1,int v2)
         must(v!=(v|item_list[i].var1),e_FUNCTIONOF(i));
 
     }
-    return fill_expr();
+    return fill_expr(0);
 }
 static int is_Markov(char sep, int v1,int v2)
 {int v,cnt; int oldpos;
@@ -639,7 +746,7 @@ static int is_Markov(char sep, int v1,int v2)
     }
     must(cnt>=3,e_MARKOV);
     must(X_chr==0,e_EXTRA_TEXT);
-    return fill_expr();
+    return fill_expr(0);
 }
 int parse_constraint(char *str, int keep)
 {int v1,v2;
@@ -659,7 +766,10 @@ int parse_constraint(char *str, int keep)
               if(R('>') && is_varlist(&v2)) return is_Markov('-',v1,v2);
           }
      }
-     return parse_entropy(str,keep);
+     return parse_entropyexpr(str,keep,0);
 }
+int parse_diff(char *str)
+{   return parse_entropyexpr(str,0,1); }
+
 
 /** EOF **/

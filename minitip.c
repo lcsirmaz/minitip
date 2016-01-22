@@ -46,6 +46,7 @@ static int com_del  (char*);	/* delete restriction */
 static int com_style(char*);	/* style */
 static int com_syntax(char*);	/* formula syntax */
 static int com_nocon(char*);	/* check without constraints */
+static int com_diff (char*);	/* difference of two expressions */
 static int com_about(char*);	/* print license info */
 
 typedef struct {
@@ -63,6 +64,7 @@ static COMMAND commands[] = {
 {"add",		com_add,	"add new constraint" },
 {"list",	com_list,	"list constraints: 3, 4-5"},
 {"del",		com_del,	"delete numbered constraints"},
+{"diff",	com_diff,	"difference of two expressions"},
 {"style",	com_style,	"show / change formula style"},
 {"syntax",	com_syntax,	"entropy expression syntax"},
 {"about",	com_about,	"history, license, author, etc"},
@@ -233,7 +235,8 @@ minitip_style==syntax_short ? "full" : "simple");
 "b) (ab|rs)      conditional entropy H(a,b| r,s)\n"
 "c) (ab,rs)      mutual information: I(a,b;r,s)\n"
 "d) (ab,rs|cd)   conditional mutual information I(a,b;r,s|c,d)\n"
-"e) [a,b,c,d]    Ingleton expression: -(a,b)+(a,b|c)+(a,b|d)+(c,d)\n" :
+"e) [a,b,c,d]    Ingleton expression: -(a,b)+(a,b|c)+(a,b|d)+(c,d)\n"
+"f) D(a,b,c)     Delta expression: (a,b|c)+(b,c|a)+(c,a|b)\n" :
 
 "In full style an ENTROPY EXPRESSION follows the standard notation:\n"
 "a) H(W,S)       entropy of the joint distribution of 'W' and 'S'\n"
@@ -241,7 +244,8 @@ minitip_style==syntax_short ? "full" : "simple");
 "c) I(W,F;S)     mutual information of 'W,F' and 'S'\n"
 "d) I(W,F;S|day) conditional mutual information\n"
 "e) [A;B;C;D]    shorthand for the Ingleton expression\n"
-"                -I(A;B)+I(A;B|C)+I(A;B|D)+I(C;D)\n");
+"                -I(A;B)+I(A;B|C)+I(A;B|D)+I(C;D)\n"
+"f) D(A;B;C)     the Delta expression I(A;B|C)+I(B;C|A)+I(C;A|B)\n");
         return 0;
     }
     if(strncasecmp(argv,"relation",3)==0){ //formula description
@@ -487,6 +491,18 @@ static int com_nocon(char *line)
         printf("Checking without constraints ...\n");
     }
     check_expression(line,0);
+    return 0;
+}
+static int com_diff(char *line)
+{   if(!*line){
+        printf("show the difference of two expressions separated by '='\n");
+        return 0;
+    }
+    if(parse_diff(line)){ /* some error */
+        error_message();
+        return 0;
+    }
+    printf(" ==> "); print_expression(); printf("\n");
     return 0;
 }
 /*---------------------------------------------------------*/

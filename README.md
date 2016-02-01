@@ -7,8 +7,8 @@ The stand-alone version Xitip at http://xitip.epfl.ch has graphical
 interface, and runs both in Windows and Linux.
 
 This program was written in C, uses the readline library to read entropy
-expressions; has a user friendly syntax checker; extended syntax; and
-glpk (gnu linear programming kit) as the LP solver.
+expressions; has a user friendly syntax checker; extended syntax; macro
+facility; online help; glpk (gnu linear programming kit) as the LP solver.
 
 #### USAGE
 
@@ -29,7 +29,7 @@ special symbols, such as  =, \<, \|, (, and ).
 Entropy expressions were entered using the **simple** style:
 [a,b,c,d] is the Ingleton expression
 *-I(a;b)+I(a;b|c)+I(a;b|d)+I(c;d)*; letters *H* and *I* indicating entropy
-and mutual information are omitted; and comma (,) is used as a separator
+and mutual information can be omitted; and comma (,) is used as a separator
 instead of semicolon (;). For **full style** use the flag **-S** as follows:
 
     PROMPT> minitip -S '[a;b;c;d]+I(e;b|c)+I(e;c|b)+((b;c|e)>=-3*I(e;a,d|b,c)'
@@ -45,10 +45,13 @@ at the terminal. Here is an example session.
      help            display this text
      ?               synonym for 'help'
      check           check inequality with constraints
-     checkw          check without constraints
+     xcheck          check without constraints
      add             add new constraint
      list            list constraints: 3, 4-5
      del             delete numbered constraints
+     zap             print missing entropy terms on RHS
+     macro           add, list, delete macros
+     run             execute commands from a file
      style           show / change formula style
      syntax          entropy expression syntax
      about           history, license, author, etc
@@ -61,7 +64,7 @@ at the terminal. Here is an example session.
     ERROR: variable list is expected here
     minitip: check [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0
           ==> TRUE with the constraints
-    minitip: checkw [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0
+    minitip: xcheck [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0
      Checking without constraints ...
           ==> FALSE
     minitip: quit
@@ -133,5 +136,5 @@ Laszlo Csirmaz, <csirmaz@ceu.edu>
 
 #### DATE
 
-15-Jan-2016
+01-Feb-2016
 

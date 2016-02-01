@@ -1,17 +1,29 @@
-/* parser.h: minitip parser module
+/* parser.h: minitip parser module */
 
+/***********************************************************************
+* This code is part of MINITIP (a MINimal Information Theoretic Prover)
+*
+* Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
+*
+* This program is free, open-source software. You may redistribute it
+* and/or modify unter the terms of the GNU General Public License (GPL).
+*
+* There is ABSOLUTELY NO WARRANTY, use at your own risk.
+*************************************************************************/
+
+/*
    Type: ORIGINAL / SIMPLE
-   Variable names:    identifiers             letters a--z
-   Set of variables:  comma separated list    sequence of letters
-   entropy:           H(<v>)                  <v>
+   Variable names:    identifiers             letters a--z + digits
+   Set of variables:  comma separated list    sequence of variables
+   entropy            H(<v>)                  <v>
    conditional        H(<v1>|<v2>)            (<v1>|<v2>)
    mutual             I(<v1>;<v2>)            (<v1>,<v2>)
    cond.mutual        I(<v1>;<v2>|<v3>)       (<v1>,<v2>|<v3>)
    Ingleton           [<v1>;<v2>;<v3>,<v4>]   [<v1>,<v2>,<v3>,<v4>]
-   Delta              D(<v1>;<v2>;<v3>)       D(<v1>,<v2>,<v3>)
+   Macro              D(<v1>;<v2>|<v3>)       D(<v1>,<v2>|<v3>)
 
    Expression:   [+-]<multiplier>[*]<entropy>
-   relation:     <expression> [= | >= | <= ] <expression>
+   relation:     <expression> [ = | >= | <= | == ] <expression>
    the LHS, RHS can be zero; leading '+' can be omitted
    
    Conditionals as abbreviation:
@@ -22,22 +34,11 @@
                               <v1> -> <v2> -> ... -> <vn>
 */
 
-/*=============================================================*/
-/* limits */
-
-/* the maximal number of items in an entropy expression
-   or in a conditional expression */
-#define minitip_MAX_ITEMS	50
-/* maximal number of variables handled. It must be at most 31
-   as variables are stored as bits in an integer */
-#define minitip_MAX_ID_NO	26
-/* maximal length of a full entropy identifier */
-#define minitip_MAX_ID_LENGTH	25
-/* maximal length of a fully expanded entropy expression */
-#define minitip_MAX_EXPR_LENGTH	250
-/*==============================================================*/
-/* set how the string is to be parsed.
-   possible values are: */
+/***********************************************************************
+* minitip style: how the expression is parsed. Ppossible values:
+*     syntax_full  (original)
+*     syntax_short (simple)
+*/
 
 typedef enum {
     syntax_full,
@@ -46,31 +47,41 @@ typedef enum {
 
 void set_syntax_style(syntax_style_t style);
 
-/*---------------------------------------------------------------*/
-/* syntax error; the error string and the position where the
-   error has been found.
-   Hard error: syntax error
-   Soft error: some resource is exhausted (too long, too many
-   variables, etc.) */
+/***********************************************************************
+* Syntax error
+*    when an error is found the syntax_error structure is filled
+*    with the error text and the error position.
+*    harderr:   syntax error
+*    softerr:   some resource is exhausted (too long identifier, 
+*               too many terms, etc).
+*/
 struct syntax_error_t {
-   char *softerrstr, *harderrstr;
+   const char *softerrstr, *harderrstr;
    int softerrpos, harderrpos;
 };
 extern struct syntax_error_t syntax_error;
 
-/*------------------------------------------------------------------*/
-/* the parser gives back the entropy expression through this structure */
+/***********************************************************************
+* Parsed entropy line
+*    The parsed line is put into the entropy_expr structure. Fields:
+*  type -- the type of the line: relation, diff, Markov, or macro def
+*  n    -- total number of entropy items
+*  item -- the items; for each item
+*    item[].var   -- a bitmap of random variables defining a set
+*    item[].coeff -- the coefficient of this entropy term
+*/
 
 typedef enum {  /* type of the constrain/expression */
     ent_eq,	/* equal */
     ent_ge,	/* greater than or equal to zero */
-    ent_Markov,	/* Markov chain */
-    end_diff,	/* show difference */
+    ent_diff,	/* zap: difference of the two sides */
+    ent_Markov,	/* Markov chain constraint */
+    ent_mdef,	/* macro definition */
 } expr_type_t;
 
 struct entropy_expr_t { /* the expression itself */
     expr_type_t type; /* type */
-    int n;	      /* number of elements */
+    int n;	      /* number of items */
     struct {
       int var;
       double coeff;
@@ -78,18 +89,71 @@ struct entropy_expr_t { /* the expression itself */
 };
 
 extern struct entropy_expr_t entropy_expr;
-/*------------------------------------------------------------------*/
 
-/* parse the string as an entropy expression. or as a condition.
-   keep=1: keep the defined variables;
-   keep=0: start new set of random variables (FULL mode only)
-   Return value:
-   0: OK, entropy_expr is filled
-   1: some error, syntax_error is filled */
-int parse_entropy(char *str, int keep);
-int parse_constraint(char *str, int keep);
+/***********************************************************************
+* int macro_total
+*    total number of macros defined including the standard macros
+*    H(X), H(X|Y), I(X;Y); I(X;Y|Z)
+*/
+extern int macro_total;
 
-int parse_diff(char *str);
+/***********************************************************************
+* Parsing routines
+*
+*  int parse_entropy(char *str, int keep)
+*    parse str as an entropy expression. 
+*      keep==1 keep the names of random variables from previous
+*               parsing
+*      keep==0 start a new set of random variables.
+*    Returns
+*      0 -- OK, entropy_expr is filled
+*      1 -- some error, syntax_error is filled
+*
+* int parse_diff(char *str)
+*    parse str as a zap (==) string. Return value is as above,
+*
+* int parse_constraint(char *str, int keep)
+*    parse str as a constraint: this is an expression, or functional
+*    dependency, independence, or a Markov chain. Return value is
+*    as above.
+*
+* int parse_macro_definition(char *str)
+*    parse str as a macro definition. If successful, also stores the
+*    macro at the next macro slot. Return value is as above.
+*/
+int parse_entropy(const char *str, int keep);
+int parse_diff(const char *str);
+int parse_constraint(const char *str, int keep);
+int parse_macro_definition(const char *str);
+
+/***********************************************************************
+* Delete a macro
+*  int parse_delete_macro(char *str)
+*    parse str as a header for a macro to be deleted. Returns
+*      -1 -- error, syntax_error is filled
+*     >=0 -- the index of the macro with the supplied header
+*  void delete_macro_with(idx)
+*    delete the macro which is at the given slot.
+*/
+int parse_delete_macro(const char *str);
+void delete_macro_with_idx(int idx);
+
+/***********************************************************************
+* Printing in raw format
+*    These routines print a linear combiniation of entropies.
+*
+*  void print_expression(void)
+*    print out the expression in entropy_expr
+*  int print_macros_with_name(char name,int from)
+*    print all macros with the given character as name above slot from
+*    (standard macros are NOT printed) Returns the number of macros
+*    printed (which can be zero).
+*  void print_macro_with_idx(int idx)
+*    print the macro at the given slot.
+*/
 void print_expression(void);
+int print_macros_with_name(char name,int from);
+void print_macro_with_idx(int idx);
 
+/* EOF */
 

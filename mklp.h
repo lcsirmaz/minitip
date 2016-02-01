@@ -1,5 +1,16 @@
 /* mklp.h */
 
+/***********************************************************************
+* This code is part of MINITIP (a MINimal Information Theoretic Prover)
+*
+* Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
+*
+* This program is free, open-source software. You may redistribute it
+* and/or modify unter the terms of the GNU General Public License (GPL).
+*
+* There is ABSOLUTELY NO WARRANTY, use at your own risk.
+*************************************************************************/
+
 /* return values for call_lp */
 #define EXPR_TRUE	((char*)0x2)
 #define EXPR_FALSE	((char*)0x3)
@@ -14,4 +25,6 @@
    other errors (such as out of memory, LP problem, etc) */
 char *call_lp(int next_expr(int));
 
+
+/* EOF */
 

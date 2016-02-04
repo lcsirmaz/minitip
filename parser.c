@@ -305,22 +305,31 @@ inline static void no_new_id(char *str)
 #define MAX_REPR_LENGTH 201	/* longer list is not understandable; >= 26 */
 static char *get_idlist_repr(int v, int slotno)
 {static char slot1[MAX_REPR_LENGTH+2], slot2[MAX_REPR_LENGTH+2];
- char *slot; const char *var; int i,j;
+const char *unsorted[minitip_MAX_ID_NO+1];
+ char *slot; const char *var; int i,j,n;
+    for(i=0,n=0;v!=0;i++,v>>=1)if(v&1){
+        unsorted[n]=i<id_table_idx ? id_table[i].id : "?"; 
+        n++;
+    }
+    j=1; // sort the variables
+    while(j){
+        j=0;
+        for(i=0;i<n-1;i++){
+            if(strcmp(unsorted[i],unsorted[i+1])>0 ){
+                var=unsorted[i]; unsorted[i]=unsorted[i+1]; unsorted[i+1]=var;
+                j=1;         
+            }
+        }
+    }
     slot= slotno==1 ? slot1 : slot2;
-    for(i=0,j=0;v!=0;i++,v>>=1){
-        if(v&1){
-            if(j>0 && X_style!=SIMPLE){ 
-                slot[j]=','; /* comma separated */
-                if(j<MAX_REPR_LENGTH) j++;
-            }
-            if(i<id_table_idx){
-               for(var=id_table[i].id;*var;var++){
-                  slot[j]=*var;
-                  if(j<MAX_REPR_LENGTH)j++;
-               }
-            } else {
-               slot[j]='a'+i; if(j<MAX_REPR_LENGTH)j++;
-            }
+    for(i=0,j=0;i<n;i++){
+        if(j>0 && X_style!=SIMPLE){ 
+            slot[j]=','; /* comma separated */
+            if(j<MAX_REPR_LENGTH) j++;
+        }
+        for(var=unsorted[i];*var;var++){
+            slot[j]=*var;
+            if(j<MAX_REPR_LENGTH)j++;
         }
     }
     slot[j]=0; return slot;

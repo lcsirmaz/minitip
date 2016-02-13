@@ -256,6 +256,7 @@ static COMMAND commands[] = {
 {"help",    com_help,  0,  cmd_name,	"display this text" },
 {"?",       com_help,  0,  cmd_name,	"synonym for 'help'" },
 {"check",   com_check, 0,  NULL,	"check inequality with constraints" },
+{"test",    com_check, 0,  NULL,	"synonym for 'check'" },
 {"xcheck",  com_nocon, 0,  NULL,	"check without constraints" },
 {"add",	    com_add,   0,  NULL,	"add new constraint" },
 {"list",    com_list,  0,  NULL,	"list constraints: 3, 4-5"},
@@ -645,6 +646,12 @@ minitip_style==syntax_short ? "full" : "simple");
 /** ADD  -- add a constraint **/
 static int com_add(const char* line,const char *orig)
 {int i;
+    if(*line==0){ // empty line, help
+        if(!orig) printf("add a new constraint, which can be\n"
+        " two entropy expressions compared by '=', '<=' or '>=', or\n"
+        " functional dependency, total independence, or a Markov chain.\n");
+        return 0;
+    }
     // check if it is there ...
     for(i=0;i<constraint_no;i++) if(strcmp(line,constraint_table[i])==0){
         printf("This constraint is #%d, no need to add again\n",i+1);
@@ -666,7 +673,7 @@ static int com_add(const char* line,const char *orig)
 }
 
 /*************************************************************************
-* read_nubmer(char *frm, int *to)
+* read_number(char *frm, int *to)
 *
 *    read a sequence of digits from the given position and put the
 *    value into *to.
@@ -683,19 +690,19 @@ static int read_number(const char *frm, int *to)
 /** LIST -- list all or some of the constraints **/
 static int com_list(const char *arg, const char *orig)
 {int i0,i1,pos; int not_printed;
-    if(*arg=='?'){ // help
+    if(*arg==0 || *arg=='?'){ // help
         if(constraint_no==0) printf(" There are no constraints\n");
         else printf(" Number of constraints is %d\n",constraint_no);
         printf("\n use '3,4-6,8' to print out constraints #3,#4 to #6, and #8\n");
         return 0;
     }
     if(constraint_no==0){
-       if(!orig) printf("  no constraints (yet)...\n");
+       if(!orig) printf(" There are no constraints which can be listed.\n");
        return 0; 
     }
-    if(*arg==0){ // no argument, print the first 20 lines
+    if(strcmp(arg,"all")==0){ // list all constraints
         printf("--- Constraints (total %d)\n",constraint_no);
-        for(i0=0;i0<20 && i0<constraint_no;i0++){
+        for(i0=0;i0<constraint_no;i0++){
             printf("%3d: %s\n",i0+1,constraint_table[i0]);
         }
         return 0;
@@ -1251,7 +1258,7 @@ inline static void short_help(void){printf(
 "   -f <file> -- use <file> as the history file (default: '" DEFAULT_HISTORY_FILE "')\n"
 "   -v        -- version and copyright\n"
 "\n"
-"Return value when checking validity of the argument:\n"
+"Exit value when checking validity of the argument:\n"
 "   " mkstringof(EXIT_TRUE)  "  - the expression (with the given constrains) checked TRUE\n"
 "   " mkstringof(EXIT_FALSE) "  - the expression (with the given constrains) checked FALSE\n"
 "   " mkstringof(EXIT_SYNTAX)"  - syntax error in the expression or in some of the constraints\n"

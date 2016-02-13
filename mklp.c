@@ -142,9 +142,9 @@ static void sort_rowidx(int n) /* bubble sort */
     }
 }
 /* add the next column. 
-   col= index of the column (1<=col<=cols)
-   n  = number of entries in row_idx[],row_val[] (1<=i<=n)
-   dir: GLP_FR: free; GLP_LO: >=0 */
+   col  = index of the column (1<=col<=cols)
+   n    = number of entries in row_idx[],row_val[] (1<=i<=n)
+   type = GLP_FR: free; GLP_LO: >=0 */
 static void add_column(int col,int n,int type)
 {   sort_rowidx(n);
     glp_set_col_bnds(P,col,type,0.0,0.0);
@@ -152,15 +152,13 @@ static void add_column(int col,int n,int type)
 }
 /* add the goal, it is in row_idx,row_val[1..n] */
 static void add_goal(int n)
-{int i,in;
+{int i,in; double v;
     sort_rowidx(n);
     for(i=1,in=1;i<=rows;i++){
-        if(row_idx[in]==i){
-            glp_set_row_bnds(P,i,GLP_FX,row_val[in],0.0);
-            in++;
-        } else {
-            glp_set_row_bnds(P,i,GLP_FX,0.0,0.0);
-        }
+        if(in<=n && row_idx[in]==i){ v=row_val[in]; in++; }
+        else { v=0.0; }
+//        glp_set_row_bnds(P,i,GLP_UP,0.0,v);
+        glp_set_row_bnds(P,i,GLP_FX,v,0.0);
     }
 }
 
@@ -172,8 +170,8 @@ static void init_var_assignment(void)
     for(i=0;i<minitip_MAX_ID_NO;i++) var_opt[i]=v;
     var_all=0; /* no final variables yet */
 }
-/* add_var(v) should be called for all variable sets involved
-   at the end, var_opt[i] has bits set which occur together in all
+/* add_var(v) should be called for all variable sets involved.
+   At the end, var_opt[i] has bits set which occur together in all
    variable sets. Bit 'i' is always set in var_opt[i]. */
 inline static void add_var(int vv)
 {int compvv = ~vv; int i,v;
@@ -190,8 +188,8 @@ static void add_expr_variables(void)
 }
 /* this procedure computes the minimal set of variables and
    assigns them into var_tr. Computes the final number of rows and
-   columns.*/
-static void do_variable_assignment(void)
+   columns. Returns 1 if the number of variables is less than 2. */
+static int do_variable_assignment(void)
 {int i,v,j,vj,nextv;
     nextv=1; var_no=0;
     for(i=0;i<minitip_MAX_ID_NO;i++){
@@ -212,9 +210,11 @@ static void do_variable_assignment(void)
        shannon: 0   0   1    6    24    n(n-1)2^(n-3)
     */
     xassert(nextv == (1<<var_no) );
+    if(var_no<2) return 1;
     rows = nextv-1;
     shannon = var_no<2 ? 0 : var_no < 3 ? 1 : var_no*(var_no-1)*(1<<(var_no-3));
     cols = shannon+var_no; /* plus the N-{i}<=N inequalities */
+    return 0;
 }
 /* get the translated variable */
 static int varidx(int v)
@@ -289,8 +289,46 @@ static void add_constraint(int col,int idx,int next_expr(int))
     xassert(idx!=idx);
 }
 
+/* call the LP solver; mult is either +1.0 or -1.0 */
+static char *invoke_lp(double mult, int next_expr(int))
+{char *retval; int i,glp_res;
+    create_glp(); // create a new glp instance
+    for(i=0;i<entropy_expr.n;i++){
+        row_idx[i+1]=varidx(entropy_expr.item[i].var);
+        row_val[i+1]=mult*entropy_expr.item[i].coeff;
+    }
+    add_goal(entropy_expr.n); // right hand side value
+    // go over the columns add them to the lp instance
+    for(i=1;i<=cols;i++){
+        int colct=colperm[i];
+        if(add_shannon(i,colct)){ // this is aconstraint
+            add_constraint(i,colct-(shannon+var_no),next_expr);
+        }
+    }
+    /* call the lp */
+    init_glp_parameters();
+    if(parm.presolve!=GLP_ON) // generate the first basis
+        glp_adv_basis(P,0);
+    glp_res=glp_simplex(P,&parm);
+    retval=NULL;
+    switch(glp_res){
+  case 0:           glp_res=glp_get_status(P); break;
+  case GLP_ENOPFS:  // no primal feasible solution
+                    glp_res=GLP_NOFEAS; break;
+  default:          retval=glp_return_msg(glp_res);
+    }
+    if(!retval){
+        retval = glp_res==GLP_OPT ? EXPR_TRUE :
+                 glp_res==GLP_NOFEAS ? EXPR_FALSE :
+                 glp_status_msg(glp_res);
+    }
+    release_glp();
+    return retval;
+}
+
 char *call_lp(int next_expr(int))
-{int i,constraints,glp_res; expr_type_t goal_type; char *retval;
+{int i,constraints; expr_type_t goal_type; 
+ char *retval, *retval2;
     /* initially the expression to be checked is in entropy_expr.
        determine first the variables */
     init_var_assignment(); /* start collecting variables */
@@ -304,8 +342,10 @@ char *call_lp(int next_expr(int))
         }
         add_expr_variables();
     }
-    /* figure out final variables and the number of rows */
-    do_variable_assignment(); /* rows, cols, number of shannon */
+    /* figure out final variables, rows, cols, number of shannon */
+    if(do_variable_assignment()){ // number of variables is less than 2
+        return "number of final random variables is less than 2";
+    }
     /* get memory for row and column permutation */
     cols += constraints;
     rowperm=malloc((rows+1)*sizeof(int));
@@ -319,78 +359,23 @@ char *call_lp(int next_expr(int))
     for(i=0;i<=cols;i++) colperm[i]= i-1; perm_array(cols+1,colperm);
     /* the expression to be checked, this will be the goal */
     if(constraints) next_expr(-1);
-    create_glp(); // create the glp problem instance
-    for(i=0;i<entropy_expr.n;i++){
-        row_idx[i+1]=varidx(entropy_expr.item[i].var);
-        row_val[i+1]=entropy_expr.item[i].coeff;
-    }
-    add_goal(entropy_expr.n); // and add the right hand side
     goal_type=entropy_expr.type; // ent_eq, ent_ge
-    // go over the columns, and add them to the lp
-    for(i=1;i<=cols;i++){
-       int colct=colperm[i];
-       if(add_shannon(i,colct)){ // this is a constraint
-           add_constraint(i,colct-(shannon+var_no),next_expr);
-       }
-    }
-    /* release unnecessary memory */
-    if(goal_type!=ent_eq && rowperm){ free(rowperm); rowperm=NULL; }
-    if(colperm){ free(colperm); colperm=NULL; }
-    /* call lp 
-       if goal_type == ent_eq then call it again with the RHS set to 
-       another value */    
-    init_glp_parameters();
-    glp_adv_basis(P,0);   /* generate the first basis */
-    glp_res=glp_simplex(P,&parm);
-    switch(glp_res){
-  case 0:            glp_res=glp_get_status(P); break;
-  case GLP_ENOPFS:
-  case GLP_ENODFS:
-  case GLP_ENOFEAS:  glp_res=GLP_NOFEAS; break;
-  default:
-        release_glp();
-        if(rowperm){ free(rowperm); rowperm=NULL; }
-        return glp_return_msg(glp_res);
-    }
-    switch(glp_res){
-  case GLP_OPT:    retval=EXPR_TRUE; break;
-  case GLP_NOFEAS: retval=EXPR_FALSE; break;
-  default:
-        release_glp();
-        if(rowperm){ free(rowperm); rowperm=NULL; }
-        return glp_status_msg(glp_res);
-    }
-    if( goal_type==ent_eq){ // call it again with changing sign
+    retval=invoke_lp(1.0,next_expr);
+    // call again with -1.0 when checking for ent_eq
+    if(goal_type==ent_eq && (retval==EXPR_TRUE || retval==EXPR_FALSE)){
         next_expr(-1); // reload the problem
-        for(i=0;i<entropy_expr.n;i++){
-            row_idx[i+1]=varidx(entropy_expr.item[i].var);
-            row_val[i+1]=-entropy_expr.item[i].coeff;
-        }
-        add_goal(entropy_expr.n); // and add the right hand side
-        if(rowperm){ free(rowperm); rowperm=NULL; } /* release this */
-        glp_adv_basis(P,0);
-        glp_res=glp_simplex(P,&parm);
-        switch(glp_res){
-      case 0:           glp_res=glp_get_status(P); break;
-      case GLP_ENOPFS:
-      case GLP_ENODFS:
-      case GLP_ENOFEAS: glp_res=GLP_NOFEAS; break;
-      default:
-            release_glp();
-            return glp_return_msg(glp_res);
-        }
-        switch(glp_res){
-      case GLP_OPT:     if(retval==EXPR_FALSE) retval=EQ_LE_ONLY;
-                        break;
-      case GLP_NOFEAS:  if(retval==EXPR_TRUE) retval=EQ_GE_ONLY;
-                        break;
-      default:
-          release_glp();
-          return glp_status_msg(glp_res);
+        retval2=invoke_lp(-1.0,next_expr);
+        if(retval2==EXPR_TRUE){
+            if(retval==EXPR_FALSE) retval=EQ_LE_ONLY;
+        } else if(retval2==EXPR_FALSE){
+            if(retval==EXPR_TRUE) retval=EQ_GE_ONLY;
+        } else {
+            retval=retval2;
         }
     }
-    release_glp(); /* release glp resources */
+    /* release allocated memory */
     if(rowperm){ free(rowperm); rowperm=NULL; }
+    if(colperm){ free(colperm); colperm=NULL; }
     return retval;
 }
 

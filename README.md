@@ -45,6 +45,7 @@ at the terminal. Here is an example session.
      help            display this text
      ?               synonym for 'help'
      check           check inequality with constraints
+     test            synonym for 'check'
      xcheck          check without constraints
      add             add new constraint
      list            list constraints: 3, 4-5
@@ -56,7 +57,7 @@ at the terminal. Here is an example session.
      syntax          entropy expression syntax
      about           history, license, author, etc
     minitip: add (e,ad|bc)=0
-    minitip: list
+    minitip: list all
     --- Constraints (total 1)
       1: (e,ad|bc)=0
     minitip: check [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|)>=0
@@ -65,7 +66,7 @@ at the terminal. Here is an example session.
     minitip: check [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0
           ==> TRUE with the constraints
     minitip: xcheck [a,b,c,d]+(e,b|c)+(e,c|b)+(b,c|e)>=0
-     Checking without constraints ...
+    Checking without constraints ...
           ==> FALSE
     minitip: quit
     Save the commands to the history file .minitip (y/n)? n
@@ -75,15 +76,15 @@ Accepted flags and return values are:
 
 | Flag  | meaning  |
 |:------|:-----| 
-| -h    | print short help and quit |
+| -h    | print a short help and quit |
 | -s    | use **minimal** style (default) |
 | -S    | use **full** style |
 | -q    | quiet, just check, don't print anything. Must have an argument to check |
-| -e    | last flag, use when the expression starts with minus sign |
+| -e    | last flag, use when the expression starts with a minus sign |
 | -f \<file\> | use \<file\> as the history file (default: **.minitip**) |
 | -v    | print version, copyright, and quit |
 
-| Return values | (when checking validity of the first argument) |
+| Exit values | (when checking validity of the first argument) |
 | :-------- | :-------------|
 | 0         | the expression (with the given constraints) checked TRUE |
 | 1         | the expression (with the given constraints) checked FALSE |
@@ -136,5 +137,5 @@ Laszlo Csirmaz, <csirmaz@ceu.edu>
 
 #### DATE
 
-01-Feb-2016
+10-Feb-2016
 

@@ -68,8 +68,16 @@ static void harderr(char *err){
     if(!syntax_error.harderrstr){
       syntax_error.harderrstr=err; syntax_error.harderrpos=X_pos; }
 }
+static void harderr_show(char *err){
+    if(!syntax_error.harderrstr){
+      syntax_error.harderrstr=err; syntax_error.harderrpos=X_pos;
+      syntax_error.showexpression=1;
+    }
+}
 #define must(cond,err)	\
     { if(!(cond)) harderr(err); }
+#define must_show(cond,err)	\
+    { if(!(cond)) harderr_show(err); }
 inline static void adjust_error_position(int d)
 {   syntax_error.softerrpos+=d; syntax_error.harderrpos+=d; }
 
@@ -131,6 +139,7 @@ inline static void adjust_error_position(int d)
 #define e_SIMPLIFIES_EQ	"the expression simplifies to '0=0', thus it is always TRUE"
 #define e_SIMPLIFIES_GE	"the expression simplifies to '0<=0', thus it is always TRUE"
 #define e_POSCOMBINATION "the expression is TRUE as a positive combination of entropy values"
+#define e_SINGLE_TERM	"the expression simplifies to a single term, no check is performed"
 
 /***********************************************************************
 * dynamic error message; the actual message depends on the argument
@@ -271,8 +280,8 @@ static int var_merge(int what, int from[])
 *
 *  char *get_idlist_repr(int v, int slot)
 *     Using v as a collection of random variables (taken as a bitmap),
-*     the textal representation of the random variables list is stored
-*     in one of two statis buffers (slot==1 and slot==2). Uses ',' as
+*     the textual representation of the random variables list is stored
+*     in one of two static buffers (slot==1 and slot==2). Uses ',' as
 *     separation for ORIGINAL style. Restricts the length of the lists
 *     to MAX_REPR_LENGTH (defined below). Too long list is unlegible.
 */
@@ -685,7 +694,8 @@ static inline void restore_pos(int oldpos)
 inline static void init_parse(const char *str){
     X_str=str; X_pos=-1; next_chr();
     syntax_error.softerrstr=NULL; 
-    syntax_error.harderrstr=NULL; /* no errors yet */
+    syntax_error.harderrstr=NULL;
+    syntax_error.showexpression=0; /* no errors yet */
 }
 /* R(c) -- check if the next symbol is c; if yes advance */
 static inline int R(char c){
@@ -1065,7 +1075,8 @@ int parse_entropy (const char *str, int keep)
     if(entropy_expr.n==0){
         harderr(entropy_expr.type==ent_eq? e_SIMPLIFIES_EQ : e_SIMPLIFIES_GE);
     }
-    must(non_trivial_expr(),e_POSCOMBINATION);
+    must_show(non_trivial_expr(),e_POSCOMBINATION);
+    must_show(entropy_expr.n>1,e_SINGLE_TERM);
     return (syntax_error.softerrstr|| syntax_error.harderrstr) ? 1 : 0;
 }
 

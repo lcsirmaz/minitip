@@ -72,7 +72,7 @@ at the terminal. Here is an example session.
     Save the commands to the history file .minitip (y/n)? n
     PROMPT> 
 
-Accepted flags and return values are:
+Accepted flags and exit values are:
 
 | Flag  | meaning  |
 |:------|:-----| 
@@ -98,7 +98,7 @@ After collecting all random variables in the expression (and constraints),
 the program creates all Shannon entropy inequalities for those variables.
 Then checks whether the expression is a consequence of the constraints and
 the Shannon inequalities. It is done by creating a Linear Program instance,
-and calling and LP solver. Thus the result printed out by the program is
+and calling an LP solver. Thus the result printed out by the program is
 the answer to the following question:
 
 > Does this inequality follow from the (basic) Shannon inequalities, and
@@ -129,7 +129,7 @@ The program uses the 'readline' library and include files, and the
 'glpk' library and include files. The following line should compile it
 on linux without any problem:
 
-     gcc -O3 *.c -lglp -lreadline -o minitip
+     gcc -O3 *.c -lglpk -lreadline -o minitip
 
 #### AUTHOR
 

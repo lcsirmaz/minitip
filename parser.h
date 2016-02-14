@@ -58,6 +58,7 @@ void set_syntax_style(syntax_style_t style);
 struct syntax_error_t {
    const char *softerrstr, *harderrstr;
    int softerrpos, harderrpos;
+   int showexpression;
 };
 extern struct syntax_error_t syntax_error;
 

@@ -238,6 +238,8 @@ static rl_compentry_func_t
   cmd_name,	/* help */
   pm_syntax,	/* syntax */
   pm_style,	/* style */
+  pm_list,	/* list */
+  pm_help,	/* offer 'help' */
   pm_macro;	/* macro */
 
 /* the COMMAND structure */
@@ -255,13 +257,13 @@ static COMMAND commands[] = {
 {"quit",    com_quit,  0,  NULL,	"quit minitip" },
 {"help",    com_help,  0,  cmd_name,	"display this text" },
 {"?",       com_help,  0,  cmd_name,	"synonym for 'help'" },
-{"check",   com_check, 0,  NULL,	"check inequality with constraints" },
-{"test",    com_check, 0,  NULL,	"synonym for 'check'" },
-{"xcheck",  com_nocon, 0,  NULL,	"check without constraints" },
-{"add",	    com_add,   0,  NULL,	"add new constraint" },
-{"list",    com_list,  0,  NULL,	"list constraints: 3, 4-5"},
-{"del",	    com_del,   0,  NULL,	"delete numbered constraint"},
-{"zap",	    com_diff,  0,  NULL,	"print missing entropy terms on RHS"},
+{"check",   com_check, 0,  pm_help,	"check inequality with constraints" },
+{"test",    com_check, 0,  pm_help,	"synonym for 'check'" },
+{"xcheck",  com_nocon, 0,  pm_help,	"check without constraints" },
+{"add",	    com_add,   0,  pm_help,	"add new constraint" },
+{"list",    com_list,  0,  pm_list,	"list all or specified constraints: 3,5-7"},
+{"del",	    com_del,   0,  pm_help,	"delete numbered constraint"},
+{"zap",	    com_diff,  0,  pm_help,	"print missing entropy terms on RHS"},
 {"macro",   com_macro, 0,  pm_macro,	"add, list, delete macros"},
 {"run",     com_batch, 1,  NULL,	"execute commands from a file"},
 {"style",   com_style, 0,  pm_style,	"show / change formula style"},
@@ -281,6 +283,9 @@ static COMMAND commands[] = {
 *
 *  char *pm_style(char *text, int state)
 *     expands text to a "style" command argument
+*
+*  char *pm_list(char *text, int state)
+*     expands text to a "list" command argument
 *
 *  char *pm_macro(char *text, int state)
 *     expands text to a "macro" command argument
@@ -319,16 +324,40 @@ static char *pm_syntax(const char *txt, int state)
 }
 static char *pm_style(const char *txt, int state)
 {static int list_index=0; const char *name;
- static const char *style1[]={ "simple","full",NULL };
- static const char *style2[]={ "full","simple",NULL };
+ static const char *styleargs[]={ "simple","full","help",NULL };
     if(!state){ list_index=0; }
-    while((name=(minitip_style==syntax_short?style2 : style1)[list_index])!=NULL){
+    while((name=styleargs[list_index])!=NULL){
         list_index++;
         if(strncmp(name,txt,strlen(txt))==0){
             return strdup(name);
         }
     }
     return (char*)NULL;
+}
+static char *pm_list( const char *txt, int state)
+{static int list_index=0; const char *name;
+ static const char *listargs[]={"1-10","all","help",NULL };
+    if(!state){ list_index=0; }
+    while((name=listargs[list_index])!=NULL){
+        list_index++;
+        if(strncmp(name,txt,strlen(txt))==0){
+            return strdup(name);
+        }
+    }
+    return (char*)NULL;
+}
+static char *pm_help(const char *txt, int state)
+{static int list_index=0; const char *name;
+ static const char *macroargs[]={"help",NULL };
+    if(!state){ list_index=0; }
+    while((name=macroargs[list_index])!=NULL){
+        list_index++;
+        if(strncmp(name,txt,strlen(txt))==0){
+            return strdup(name);
+        }
+    }
+    return (char*)NULL;
+
 }
 static char *pm_macro( const char *txt, int state)
 {static int list_index=0; const char *name;
@@ -439,6 +468,9 @@ static void error_message(const char *orig)
     if(orig) printf("%s\n",orig);
     else pos += strlen(minitip_PROMPT);
     for(i=0;i<pos;i++)printf("-"); printf("^\nERROR: %s\n",err);
+    if(syntax_error.showexpression){
+        printf(" ==> "); print_expression(); printf("\n"); 
+    }
 }
 
 /***********************************************************************
@@ -486,9 +518,9 @@ static int com_help(const char *arg, const char *line)
         }
     }
     if(!printed && !line){ /* give help only when not in batch job */
-        printf("No command matches '%s'. Possibilities are:\n",arg);
+        printf(" No command matches '%s'. Possibilities are:\n",arg);
         for(i=0;commands[i].name;i++){
-            printf("%s%c",commands[i].name,printed%6==5?'\n':'\t');
+            printf(" %s%c",commands[i].name,printed%6==5?'\n':'\t');
             printed++;
         }
         printf("\n");
@@ -646,10 +678,10 @@ minitip_style==syntax_short ? "full" : "simple");
 /** ADD  -- add a constraint **/
 static int com_add(const char* line,const char *orig)
 {int i;
-    if(*line==0){ // empty line, help
-        if(!orig) printf("add a new constraint, which can be\n"
-        " two entropy expressions compared by '=', '<=' or '>=', or\n"
-        " functional dependency, total independence, or a Markov chain.\n");
+    if(*line==0 || strcmp(line,"help")==0){ // empty line, help
+        if(!orig) printf(" add a new constraint, which can be\n"
+        " - two entropy expressions compared by '=', '<=' or '>=', or\n"
+        " - functional dependency, total independence, or a Markov chain.\n");
         return 0;
     }
     // check if it is there ...
@@ -690,19 +722,21 @@ static int read_number(const char *frm, int *to)
 /** LIST -- list all or some of the constraints **/
 static int com_list(const char *arg, const char *orig)
 {int i0,i1,pos; int not_printed;
-    if(*arg==0 || *arg=='?'){ // help
-        if(constraint_no==0) printf(" There are no constraints\n");
-        else printf(" Number of constraints is %d\n",constraint_no);
-        printf("\n use '3,4-6,8' to print out constraints #3,#4 to #6, and #8\n");
+    if(*arg=='?' || strcmp(arg,"help")==0){ // help
+        if(constraint_no==0) printf(" There are no constraints to be listed.\n");
+        else printf(" The number of constraints is %d\n",constraint_no);
+        printf(" Use 'all' to show all; '1-10' to show the first 10 constraints.\n"
+               " In general, 'list 3,4-6,8' shows constraints #3,#4 to #6, and #8\n");
         return 0;
     }
     if(constraint_no==0){
-       if(!orig) printf(" There are no constraints which can be listed.\n");
+       if(!orig) printf(" There are no constraints to be listed.\n");
        return 0; 
     }
-    if(strcmp(arg,"all")==0){ // list all constraints
+    if(*arg==0 || strcmp(arg,"all")==0){ // list first ten or all constraints
         printf("--- Constraints (total %d)\n",constraint_no);
-        for(i0=0;i0<constraint_no;i0++){
+        i1=*arg==0 ? 10 : constraint_no;
+        for(i0=0;i0<i1;i0++){
             printf("%3d: %s\n",i0+1,constraint_table[i0]);
         }
         return 0;
@@ -764,7 +798,7 @@ static int com_del(const char *arg, const char *line)
         if(!line) printf(" There are no constraints to delete.\n");
         return 0; /* OK */
     }
-    if(*arg==0 || *arg == '?'){
+    if(*arg==0 || *arg == '?' || strcmp(arg,"help")==0){
         if(!line)
         printf("--- Specify a constraint to be deleted from 1 to %d, or say 'all'.\n",
              constraint_no);
@@ -882,9 +916,9 @@ static void setup_standard_macros(void)
 /** MACRO add -- define a new macro **/
 static int com_macro_add(const char *arg, const char* line)
 {
-    if(!*arg){
+    if(!*arg || strcmp(arg,"help")==0){
          if(!line)printf(
-" add a new macro to be used in entropy expression.\n"
+" add a new macro to be used in entropy expressions.\n"
 " Example:  %s\n"
 " Different argument separators define different macros.\n", 
          minitip_style==syntax_short ? 
@@ -946,7 +980,7 @@ static int com_macro_list(const char *arg, const char* line)
 /** MACRO del -- delete macro with given prototype **/
 static int com_macro_del(const char *arg, const char* line)
 {int macro_id;
-    if(!*arg){
+    if(!*arg || strcmp(arg,"help")==0){
         if(!line)printf(
 " to delete a macro specify its header only, such as %s.\n",
 minitip_style==syntax_short ? "X(a,b|c)" : "X(A;B|C)");
@@ -1043,8 +1077,9 @@ static int com_batch(const char *arg,const char *line)
 /** CHECK -- check entropy relation with all constraints **/
 static int com_check(const char *line, const char *orig)
 {int i,keep;
-    if(!*line){
-        if(!orig)printf("Check the validity of an entropy relation with all constraints.\n");
+    if(!*line || strcmp(line,"help")==0){
+        if(!orig)printf(" Check the validity of an entropy relation with all constraints.\n"
+                        " Enter 'syntax relation' for more help.\n");
         return 0; /* empty line, OK */
     }
     keep=0; // add all constraints
@@ -1062,8 +1097,9 @@ static int com_check(const char *line, const char *orig)
 
 /** NOCON -- check entropy relation without constraints **/
 static int com_nocon(const char *line, const char *orig)
-{   if(!*line){
-        if(!orig)printf("Crosscheck an entropy relation without any constraints.\n");
+{   if(!*line || strcmp(line,"help")==0){
+        if(!orig)printf(" Crosscheck an entropy relation without any constraints.\n"
+                        " Enter 'syntax relation' for more help.\n");
         return 0;
     }
     if(parse_entropy(line,0)){ /* some error */
@@ -1080,9 +1116,10 @@ static int com_nocon(const char *line, const char *orig)
 
 /** DIFF -- print difference of two expressions **/
 static int com_diff(const char *line, const char *orig)
-{   if(!*line){
+{   if(!*line || strcmp(line,"help")==0){
         if(!orig)
-            printf("show the difference of two expressions separated by '=='\n");
+            printf(" Show the difference of two expressions separated by '=='\n"
+                   " Use 'syntax zap' for more help.\n");
         return 0;
     }
     if(parse_diff(line)){ /* some error */
@@ -1259,10 +1296,10 @@ inline static void short_help(void){printf(
 "   -v        -- version and copyright\n"
 "\n"
 "Exit value when checking validity of the argument:\n"
-"   " mkstringof(EXIT_TRUE)  "  - the expression (with the given constrains) checked TRUE\n"
-"   " mkstringof(EXIT_FALSE) "  - the expression (with the given constrains) checked FALSE\n"
-"   " mkstringof(EXIT_SYNTAX)"  - syntax error in the expression or in some of the constraints\n"
-"   " mkstringof(EXIT_ERROR) "  - some error (problem too large, LP failure, etc)\n"
+"    " mkstringof(EXIT_TRUE)  "  -- the expression (with the given constrains) checked TRUE\n"
+"    " mkstringof(EXIT_FALSE) "  -- the expression (with the given constrains) checked FALSE\n"
+"    " mkstringof(EXIT_SYNTAX)"  -- syntax error in the expression or in some of the constraints\n"
+"    " mkstringof(EXIT_ERROR) "  -- some error (problem too large, LP failure, etc)\n"
 "\n"
 "For more information, type 'help' from within minitip\n\n");
 }

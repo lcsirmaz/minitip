@@ -6,7 +6,7 @@
 * Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
 *
 * This program is free, open-source software. You may redistribute it
-* and/or modify unter the terms of the GNU General Public License (GPL).
+* and/or modify under the terms of the GNU General Public License (GPL).
 *
 * There is ABSOLUTELY NO WARRANTY, use at your own risk.
 *************************************************************************/

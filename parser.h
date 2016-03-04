@@ -6,7 +6,7 @@
 * Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
 *
 * This program is free, open-source software. You may redistribute it
-* and/or modify unter the terms of the GNU General Public License (GPL).
+* and/or modify under the terms of the GNU General Public License (GPL).
 *
 * There is ABSOLUTELY NO WARRANTY, use at your own risk.
 *************************************************************************/
@@ -38,6 +38,10 @@
 * minitip style: how the expression is parsed. Ppossible values:
 *     syntax_full  (original)
 *     syntax_short (simple)
+*
+* void set_syntax_style(style,sepchar)
+*     set the style to the given one, and use the character as
+*     separator between variables sequences.
 */
 
 typedef enum {
@@ -45,7 +49,7 @@ typedef enum {
     syntax_short
 } syntax_style_t;
 
-void set_syntax_style(syntax_style_t style);
+void set_syntax_style(syntax_style_t style,char sepchar);
 
 /***********************************************************************
 * Syntax error
@@ -141,7 +145,7 @@ void delete_macro_with_idx(int idx);
 
 /***********************************************************************
 * Printing in raw format
-*    These routines print a linear combiniation of entropies.
+*    These routines print a linear combination of entropies.
 *
 *  void print_expression(void)
 *    print out the expression in entropy_expr

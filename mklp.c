@@ -6,7 +6,7 @@
 * Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
 *
 * This program is free, open-source software. You may redistribute it
-* and/or modify unter the terms of the GNU General Public License (GPL).
+* and/or modify under the terms of the GNU General Public License (GPL).
 *
 * There is ABSOLUTELY NO WARRANTY, use at your own risk.
 *************************************************************************/
@@ -40,7 +40,7 @@ static int
 
 static int var_no;		/* final number of variables */
 /** LP structure **/
-static int shannon;		/* number of shannon inequalities */
+static int shannon;		/* number of Shannon inequalities */
 static int rows,cols;		/* number of rows and columns */
 static int *rowperm;		/* permutation of rows */
 static int *colperm;		/* permutation of columns */
@@ -57,7 +57,7 @@ static char *glp_status_msg(int stat)
 {static char *statmsg[] = {
 "solution is undefined",        // GLP_UNDEF
 "solution is feasible",         // GLP_FEAS
-"solution is infeasible",       // GLP_INFEAS
+"solution is unfeasible",       // GLP_INFEAS
 "no feasible solution exists",  // GLP_NOFEAS
 "solution is optimal",          // GLP_OPT
 "solution is unbounded",        // GLP_UNBND
@@ -102,15 +102,14 @@ static void create_glp(void)
     glp_add_cols(P,cols); glp_add_rows(P,rows);
     /* set the objective to all zero */
     for(i=0;i<=cols;i++)glp_set_obj_coef(P,i,0.0);
-    glp_set_obj_dir(P,GLP_MIN); /* minize */
+    glp_set_obj_dir(P,GLP_MIN); /* minimize */
 }
 /* clean up all results */
 static void release_glp(void){
     if(P){ glp_delete_prob(P); P=NULL; }
 }
 /* init glp parameters. These should be changeable some way */
-static void init_glp_parameters(void)
-{
+static void init_glp_parameters(void){
     glp_init_smcp(&parm);
     parm.meth = GLP_DUAL;	// PRIMAL,DUAL,DUALP
     parm.msg_lev = GLP_MSG_ERR; // ORR,ON,ALL,ERR
@@ -157,7 +156,6 @@ static void add_goal(int n)
     for(i=1,in=1;i<=rows;i++){
         if(in<=n && row_idx[in]==i){ v=row_val[in]; in++; }
         else { v=0.0; }
-//        glp_set_row_bnds(P,i,GLP_UP,0.0,v);
         glp_set_row_bnds(P,i,GLP_FX,v,0.0);
     }
 }
@@ -207,7 +205,7 @@ static int do_variable_assignment(void)
     }
     /* var_no:  0   1   2    3     4    n
        rows:    0   1   3    7    15    2^n-1
-       shannon: 0   0   1    6    24    n(n-1)2^(n-3)
+       Shannon: 0   0   1    6    24    n(n-1)2^(n-3)
     */
     xassert(nextv == (1<<var_no) );
     if(var_no<2) return 1;
@@ -223,7 +221,7 @@ static int varidx(int v)
     return rowperm[w];
 }
 
-/* create the idx-th shannon inequality
+/* create the idx-th Shannon inequality
     the last var_no-2 bits give a subset, before it is the two extra vars
     don't do variable translation, use only the rowperm[] table
 */
@@ -290,40 +288,18 @@ static void add_constraint(int col,int idx,int next_expr(int))
 }
 
 /* call the LP solver; mult is either +1.0 or -1.0 */
-static char *invoke_lp(double mult, int next_expr(int))
-{char *retval; int i,glp_res;
-    create_glp(); // create a new glp instance
-    for(i=0;i<entropy_expr.n;i++){
-        row_idx[i+1]=varidx(entropy_expr.item[i].var);
-        row_val[i+1]=mult*entropy_expr.item[i].coeff;
-    }
-    add_goal(entropy_expr.n); // right hand side value
-    // go over the columns add them to the lp instance
-    for(i=1;i<=cols;i++){
-        int colct=colperm[i];
-        if(add_shannon(i,colct)){ // this is aconstraint
-            add_constraint(i,colct-(shannon+var_no),next_expr);
-        }
-    }
-    /* call the lp */
-    init_glp_parameters();
-    if(parm.presolve!=GLP_ON) // generate the first basis
-        glp_adv_basis(P,0);
+static char *invoke_lp(void)
+{int glp_res;
     glp_res=glp_simplex(P,&parm);
-    retval=NULL;
     switch(glp_res){
   case 0:           glp_res=glp_get_status(P); break;
   case GLP_ENOPFS:  // no primal feasible solution
                     glp_res=GLP_NOFEAS; break;
-  default:          retval=glp_return_msg(glp_res);
+  default:          return glp_return_msg(glp_res);
     }
-    if(!retval){
-        retval = glp_res==GLP_OPT ? EXPR_TRUE :
-                 glp_res==GLP_NOFEAS ? EXPR_FALSE :
-                 glp_status_msg(glp_res);
-    }
-    release_glp();
-    return retval;
+    return (glp_res==GLP_OPT ? EXPR_TRUE :
+            glp_res==GLP_NOFEAS ? EXPR_FALSE :
+            glp_status_msg(glp_res));
 }
 
 char *call_lp(int next_expr(int))
@@ -342,7 +318,7 @@ char *call_lp(int next_expr(int))
         }
         add_expr_variables();
     }
-    /* figure out final variables, rows, cols, number of shannon */
+    /* figure out final variables, rows, cols, number of Shannon */
     if(do_variable_assignment()){ // number of variables is less than 2
         return "number of final random variables is less than 2";
     }
@@ -360,11 +336,34 @@ char *call_lp(int next_expr(int))
     /* the expression to be checked, this will be the goal */
     if(constraints) next_expr(-1);
     goal_type=entropy_expr.type; // ent_eq, ent_ge
-    retval=invoke_lp(1.0,next_expr);
+    create_glp(); // create a new glp instance
+    for(i=0;i<entropy_expr.n;i++){
+        row_idx[i+1]=varidx(entropy_expr.item[i].var);
+        row_val[i+1]=entropy_expr.item[i].coeff;
+    }
+    add_goal(entropy_expr.n); // right hand side value
+    // go over the columns add them to the lp instance
+    for(i=1;i<=cols;i++){
+        int colct=colperm[i];
+        if(add_shannon(i,colct)){ // this is a constraint
+            add_constraint(i,colct-(shannon+var_no),next_expr);
+        }
+    }
+    /* call the lp */
+    init_glp_parameters();
+    if(parm.presolve!=GLP_ON) // generate the first basis
+        glp_adv_basis(P,0);
+
+    retval=invoke_lp();
     // call again with -1.0 when checking for ent_eq
     if(goal_type==ent_eq && (retval==EXPR_TRUE || retval==EXPR_FALSE)){
         next_expr(-1); // reload the problem
-        retval2=invoke_lp(-1.0,next_expr);
+        for(i=0;i<entropy_expr.n;i++){
+            row_idx[i+1]=varidx(entropy_expr.item[i].var);
+            row_val[i+1]=-entropy_expr.item[i].coeff;
+        }
+        add_goal(entropy_expr.n); // right hand side value
+        retval2=invoke_lp();
         if(retval2==EXPR_TRUE){
             if(retval==EXPR_FALSE) retval=EQ_LE_ONLY;
         } else if(retval2==EXPR_FALSE){
@@ -374,6 +373,7 @@ char *call_lp(int next_expr(int))
         }
     }
     /* release allocated memory */
+    release_glp();
     if(rowperm){ free(rowperm); rowperm=NULL; }
     if(colperm){ free(colperm); colperm=NULL; }
     return retval;

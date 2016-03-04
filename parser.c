@@ -6,7 +6,7 @@
 * Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
 *
 * This program is free, open-source software. You may redistribute it
-* and/or modify unter the terms of the GNU General Public License (GPL).
+* and/or modify under the terms of the GNU General Public License (GPL).
 *
 * There is ABSOLUTELY NO WARRANTY, use at your own risk.
 *************************************************************************/
@@ -35,9 +35,9 @@
 *   char *X_str   the string to be parsed
 *   int   X_pos   the actual position
 *   char  X_chr   the character at the X_pos position
+*
 */
 static const char *X_str; static char X_chr; static int X_pos;
-static syntax_style_t X_style;
 
 /***********************************************************************
 * Error structure, error routines and messages
@@ -102,7 +102,7 @@ inline static void adjust_error_position(int d)
 #define e_CONDEXPR	"( should be followed by a variable list"
 #define e_IEXPR2	"variable list is missing after | symbol"
 #define e_CLOSING	"closing parenthesis ')' is expected here"
-#define e_COMMA_OR_BAR	"either ',' or '|' is expected here"
+#define e_COMMA_OR_BAR	"either a list separator or '|' is expected here"
 #define e_VARLIST	"variable list is expected here"
 
 #define e_PLUSORMINUS	"either '+' or '-' is expected here"
@@ -159,17 +159,22 @@ static char buf1[80],buf2[10]; char *txt;
     return buf1;
 }
 /***********************************************************************
-* Set expression style: SIMPLE or ORIGINAL
+* Variables storing expression style
 *
+*   style_t X_style  actual style: SIMPLE or ORIGINAL
+*   char    X_sep    the separator character, one of .:;
 */
+
+static syntax_style_t X_style; static char X_sep;
 #define SIMPLE		syntax_short
 #define ORIGINAL	syntax_full
-void set_syntax_style(syntax_style_t style){ X_style=style; }
+void set_syntax_style(syntax_style_t style, char sep){ 
+    X_style=style; X_sep=sep; }
 
 /***********************************************************************
-* Macro expansion and storeage routines
+* Macro expansion and storage routines
 *   expanded macro texts are stored in the macro_text[] array.
-*   A new defintion fills out new_macro, which then can be copied
+*   A new definition fills out new_macro, which then can be copied
 *   into the main macro storage part.
 *
 * void add_new_macro(macro_head_t head)
@@ -220,7 +225,7 @@ void delete_macro_with_idx(int idx)
 }
 /***********************************************************************
 * int find_macro(macro_head_t head, int partial)
-*   search among macros mathcing the sepcification in head:
+*   search among macros matching the specification in head:
 *    head.name:   - macro name, 'A'--'Z'
 *    head.argno   - argument number to search for (can be smaller
 *                     than the actual argument number)
@@ -283,7 +288,7 @@ static int var_merge(int what, int from[])
 *     the textual representation of the random variables list is stored
 *     in one of two static buffers (slot==1 and slot==2). Uses ',' as
 *     separation for ORIGINAL style. Restricts the length of the lists
-*     to MAX_REPR_LENGTH (defined below). Too long list is unlegible.
+*     to MAX_REPR_LENGTH (defined below). Too long list is illegible.
 */
 
 struct { char id[minitip_MAX_ID_LENGTH+1]; }id_table [minitip_MAX_ID_NO+1];
@@ -332,7 +337,7 @@ const char *unsorted[minitip_MAX_ID_NO+1];
     }
     slot= slotno==1 ? slot1 : slot2;
     for(i=0,j=0;i<n;i++){
-        if(j>0 && X_style!=SIMPLE){ 
+        if(j>0 && X_style==ORIGINAL){ 
             slot[j]=','; /* comma separated */
             if(j<MAX_REPR_LENGTH) j++;
         }
@@ -382,12 +387,12 @@ static ITEM item;
 
 /***********************************************************************
 * struct entropy_expr_t entropy_expr
-*   the collected entropy experssion. Each entry is an entropy of a
+*   the collected entropy expression. Each entry is an entropy of a
 *   collection of variables which is stored as a bitmap, plus its
 *   coefficient.
 *
-*   The convenince macros ee_n, ee_item, ee_type are defined to denote
-*   fields of the exntropy_expr structure in this section.
+*   The convenience macros ee_n, ee_item, ee_type are defined to denote
+*   fields of the entropy_expr structure in this section.
 */
 struct entropy_expr_t entropy_expr;
 
@@ -432,8 +437,8 @@ inline static void ee_i3(int v1,int v2,int v3, double d){
 /***********************************************************************
 * Convert an item into a linear combination of entropies
 *
-*  int ee_nagate
-*    if set, subtract, rather than add the extropy item to the
+*  int ee_negate
+*    if set, subtract, rather than add the entropy item to the
 *    accumulated result. It should be cleared initially, and
 *    is set when the relation symbol =, >=, or == is found.
 *
@@ -442,7 +447,7 @@ inline static void ee_i3(int v1,int v2,int v3, double d){
 *    as well as the ee_negate flag.
 *
 *  void convert_item_to_expr(void)
-*    given the item stored in ITEM, add it to the entropy experssion
+*    given the item stored in ITEM, add it to the entropy expression
 *    in entropy_expr. Constraints are handled separately
 */
 static int ee_negate;
@@ -610,27 +615,26 @@ void print_expression(void)
         if(d<1.0+1e-9 && d>1.0-1e-9){ printf("+"); }
         else if(d<-1.0+1e-9 && d>-1.0-1e-9){ printf("-"); }
         else {printf("%+lg",d); }
-        if(X_style==SIMPLE){
-            printf("%s",get_idlist_repr(ee_item[i].var,1));
-        } else {
+        if(X_style==ORIGINAL){
             printf("H(%s)",get_idlist_repr(ee_item[i].var,1));
+        } else {
+            printf("%s",get_idlist_repr(ee_item[i].var,1));
         }
     }
 }
 /* print out a macro */
 void print_macro_with_idx(int idx)
-{int i,v; char sep; int septype,varno; char varstr[2];
-    sep = X_style==SIMPLE ? ',' : ';';
+{int i,v; int septype,varno; char varstr[2];
     septype=macro_text[idx].head.septype;
     varno=macro_text[idx].head.argno;
     no_new_id(NULL);
     id_table_idx=0;
     printf(" macro %c(",macro_text[idx].head.name);
     for(v=0;v<varno;v++){ /* add variables to be printed */
-        varstr[0]=v+(X_style==SIMPLE ? 'a' : 'A');
+        varstr[0]=v+(X_style==ORIGINAL ? 'A' : 'a');
         varstr[1]=0;
         search_id(varstr);
-        printf("%s%c",varstr,v<varno-1?((septype&1)?'|':sep):')' );
+        printf("%s%c",varstr,v<varno-1?((septype&1)?'|':X_sep):')' );
         septype>>=1;
     }
     printf(" = ");
@@ -681,13 +685,13 @@ int print_macros_with_name(char name, int from)
 /* next_chr()  -- advance to the next visible char */
 static inline void next_chr(void)
 {  X_pos++; while((X_chr=X_str[X_pos])==' '|| X_chr=='\t') X_pos++; }
-/* next_idchr() --  advnace to the next character */
+/* next_idchr() --  advance to the next character */
 static inline void next_idchr(void)
 {  X_pos++; X_chr=X_str[X_pos]; }
 /* skip_to_visible() -- skip to the next visible char */
 static inline void skip_to_visible(void)
 { while((X_chr=X_str[X_pos])==' '||X_chr=='\t') X_pos++; }
-/* resotre_pos(oldpos) -- restore the old position (backtrack) */
+/* restore_pos(oldpos) -- restore the old position (backtrack) */
 static inline void restore_pos(int oldpos)
 {  X_pos=oldpos; X_chr=X_str[X_pos]; }
 /* init_parse() - initialize parsing */
@@ -748,7 +752,7 @@ static int is_number(double *v)
     return frac_part(v);
 }
 /*----------------------------------------------------------------------
-* int is_isgned number(double *v)
+* int is_signed number(double *v)
 *    signed number: a sign, a number, or a sign followed by a number
 *    The argument is set even if returns false.
 *    It parses the regexp: +<number> | -<number> | <number> | +
@@ -770,9 +774,7 @@ static int is_signed_number(double *v)
 /*----------------------------------------------------------------------
 * int is_variable(int *v)
 *    parses an identifier and returns the bit as found by search(id)
-*    For SIMPLE style, an identifier is  [a-z]\d*\'*
-*       that is, a lower case letter, followed by a possible sequence of
-*       digits, followed by a possible sequence of primes (')
+*    For SIMPLE an identifier is  [a-z][']*
 *    For ORIGINAL style, an identifier is [a-zA-Z]<letgit>*\'*
 *       where letgit contains the underscore as well.
 */
@@ -783,17 +785,7 @@ inline static int spy_letgit(void){
 static int is_variable(int *v)
 {char var[minitip_MAX_ID_LENGTH+1]; int i;
     *v=0; i=-1;
-    if(X_style==SIMPLE){
-        if('a'<=X_chr && X_chr<='z'){
-            var[0]=X_chr; i=0; next_idchr();
-            while('0'<=X_chr && X_chr<='9'){
-                i++; if(i>=minitip_MAX_ID_LENGTH-1){
-                    i--; softerr(e_TOO_LONG_ID);
-                } else { var[i]=X_chr; }
-                next_idchr();
-            }
-        }
-    } else { // X_style==ORIGINAL
+    if(X_style==ORIGINAL){
         if( ('a'<= X_chr && X_chr <='z') ||
             ('A'<= X_chr && X_chr <='Z')){
             var[0]=X_chr; i=0; next_idchr();
@@ -803,6 +795,18 @@ static int is_variable(int *v)
                 } else {var[i]=X_chr; }
                 next_idchr();
             }
+        }
+    } else { // X_style == SIMPLE
+        if('a'<=X_chr && X_chr<='z'){
+            var[0]=X_chr; i=0; next_idchr();
+#if 0 /* V1.1.2, no digits for SIMPLE variables */
+            while('0'<=X_chr && X_chr<='9'){
+                i++; if(i>=minitip_MAX_ID_LENGTH-1){
+                    i--; softerr(e_TOO_LONG_ID);
+                } else { var[i]=X_chr; }
+                next_idchr();
+            }
+#endif
         }
     }
     if(i<0) return 0;
@@ -828,7 +832,7 @@ static int is_varlist(int *v)
     if(is_variable(v)){
         if(X_style==SIMPLE){
             while(is_variable(&j)){ *v |= j; }
-        } else {
+        } else { // ORIGINAL
             while(R(',')){
                 must(is_variable(&j),e_VAR_EXPECTED);
                 *v |= j;
@@ -868,7 +872,8 @@ static int is_macro_name(char *v){
 * Parsing entropy items
 *    parse the next entropy item and store it in the ITEM structure
 *  int is_Ingleton            [a,b,c,d]
-*  int is_simple_expression   a (a,b) (a|b)  (a,b|c)
+*  int is_par_expression      (a,b) (a|b) (a,b|c)
+*  int is_simple_expression   a a,b a|b a,b|c
 *  int is_macro_invocation    X(list1,list2|listn)
 *
 *  int expect_oneof(char c1,c2,c3)
@@ -876,23 +881,21 @@ static int is_macro_name(char *v){
 *    issue meaningful error message
 */
 static int is_Ingleton(void)
-{char sep; /* the separator character */
-    sep = X_style==SIMPLE ? ',' : ';';
-    if(R('[')){
+{   if(R('[')){
         item.item_type=Ing;
         must(is_varlist(&item.var1),e_INGLETONVAR);
-        must(R(sep),e_INGLETONSEP);
+        must(R(X_sep),e_INGLETONSEP);
         must(is_varlist(&item.var2),e_INGLETONVAR);
-        must(R(sep),e_INGLETONSEP);
+        must(R(X_sep),e_INGLETONSEP);
         must(is_varlist(&item.var3),e_INGLETONVAR);
-        must(R(sep),e_INGLETONSEP);
+        must(R(X_sep),e_INGLETONSEP);
         must(is_varlist(&item.var4),e_INGLETONVAR);
         must(R(']'),e_INGLETONCLOSE);
         return 1;
     }
     return 0;
 }
-static int is_simple_expression(void)
+static int is_par_expression(void)
 {   if(R('(')){ /* (a,b)  (a|b)  (a,b|c) */
         must(is_varlist(&item.var1),e_CONDEXPR);
         if(R('|')){
@@ -901,7 +904,7 @@ static int is_simple_expression(void)
             must(R(')'),e_CLOSING);
         } else {
             item.item_type=I2;
-            must(R(','),e_COMMA_OR_BAR);
+            must(R(X_sep),e_COMMA_OR_BAR);
             must(is_varlist(&item.var2),e_VARLIST);
             if(R('|')){
                 item.item_type=I3;
@@ -911,8 +914,26 @@ static int is_simple_expression(void)
         }
         return 1;
     }
-    if(is_varlist(&item.var1)){
+//    if(is_varlist(&item.var1)){
+//        item.item_type=H1;
+//        return 1;
+//    }
+    return 0;
+}
+static int is_simple_expression(void)
+{   if(is_varlist(&item.var1)){ /* a a,b a|b a,b|c */
         item.item_type=H1;
+        if(R('|')){
+            item.item_type=H2;
+            must(is_varlist(&item.var2),e_IEXPR2);
+        } else if(R(X_sep)){
+            item.item_type=I2;
+            must(is_varlist(&item.var2),e_VARLIST);
+            if(R('|')){
+                item.item_type=I3;
+                must(is_varlist(&item.var3),e_VARLIST);
+            }
+        }
         return 1;
     }
     return 0;
@@ -936,8 +957,6 @@ static int expect_oneof(char c1, char c2, char c3)
 }
 static int is_macro_invocation(void)
 {int oldpos; struct macro_head_t head; int macrono; int done;
- char sep;
-    sep = X_style==SIMPLE ? ',' : ';';
     oldpos=X_pos;
     if(is_macro_name(&head.name) && R('(')){
         head.argno=0; head.septype=0;
@@ -948,8 +967,8 @@ static int is_macro_invocation(void)
             /* no need to give an error as no such a macro exists */
             /* figure out the next symbol */
             switch(expect_oneof(
-                find_macro(head,0)>=0 ? ')' : 0,
-                find_macro(head,1) >=0 ? sep : 0,
+                find_macro(head,0) >=0 ? ')' : 0,
+                find_macro(head,1) >=0 ? X_sep : 0,
                 find_macro(head,2) >=0 ? '|' : 0)){
                 case 3:  head.septype |= 1<<(head.argno-1); break;
                 case 2:  break; /* sep */
@@ -1013,6 +1032,7 @@ static void parse_entropyexpr(const char *str, int keep, int etype)
           if(R('*')) iscoeff=2;
        } else { coeff=1.0; }
        if((X_style==SIMPLE && is_simple_expression()) ||
+          (X_style==SIMPLE && is_par_expression()) ||
           is_Ingleton() || is_macro_invocation()){
           item.multiplier=coeff;
           if(where==W_start) where=W_bexpr;
@@ -1096,7 +1116,7 @@ int parse_diff(const char *str)
 * int is_funcdep(int v1,int v2)
 *   parse and store the first type of constraint
 *
-* int is_indep(invt v1,int v2)
+* int is_indep(int v1,int v2)
 *   parse and store the second type of constraint
 *
 * int is_Markov(int v1,int v2)
@@ -1175,7 +1195,7 @@ int parse_constraint(const char *str, int keep)
     no_new_id(NULL);   /* add new variables */
     if(!keep) id_table_idx=0; /* don't keep previous identifiers */
     init_parse(str);
-    if(is_varlist(&v1)){ /* check for special constructs */
+    if(strchr(str,'=')==NULL && is_varlist(&v1)){ /* check for special constructs */
         if(R(':')){
               if(is_varlist(&v2)) return is_funcdep(v1,v2);
         } else if(R('.')){
@@ -1215,18 +1235,17 @@ int parse_constraint(const char *str, int keep)
 *    1   -- some error, syntax_error is filled
 */
 static int parse_macro_head(const char *str, struct macro_head_t *head)
-{char name; int sepmask,argno,sep; int done,var;
+{char name; int sepmask,argno; int done,var;
     clear_entexpr();       // clear result space 
     no_new_id(NULL);       // add new variables
     id_table_idx=0;        // don't keep old identifiers
     init_parse(str);
-    sep = X_style==SIMPLE ? ',' : ';';
     name='\0';
     must(is_macro_name(&name) && R('('),e_MDEF_NAME);
     argno=0; sepmask=0;    // arguments, separator mask
     for(done=0;!done;){
         is_variable(&var); // variable is optional
-        if(R(sep)){;}
+        if(R(X_sep)){;}
         else if(R('|')){ sepmask |= 1<<argno; }
         else { must(R(')'),e_MDEF_PARSEP); done=1; }
         if(argno<minitip_MAX_ID_NO) argno++;
@@ -1248,8 +1267,7 @@ int parse_delete_macro(const char *str)
 }
 
 int parse_macro_definition(const char *str)
-{char sep; int done,v,var,defpos;
- struct macro_head_t head;
+{int done,v,var,defpos; struct macro_head_t head;
     if(parse_macro_head(str,&head)) return 1; /* error in the head */
     v=find_macro(head,0);  // should not be defined
     must(v<0,v<4?e_MDEF_NOSTD:e_MDEF_DEFINED);
@@ -1260,14 +1278,13 @@ int parse_macro_definition(const char *str)
     no_new_id(NULL);       // add new variables
     id_table_idx=0;        // don't keep old identifiers
     init_parse(str);
-    sep = X_style==SIMPLE ? ',':';';
     head.name='\0';
     must(is_macro_name(&head.name) && R('('),e_MDEF_NAME);
     head.argno=0; head.septype=0;  // arguments, separator mask
     for(done=0;!done;){
         must(is_variable(&var),e_MDEF_NOPAR);
         must(var==1<<head.argno,e_MDEF_SAMEPAR);
-        if(R(sep)){;}
+        if(R(X_sep)){;}
         else if(R('|')){ head.septype |= 1<<head.argno; }
         else { must(R(')'),e_MDEF_PARSEP); done=1; }
         if(head.argno<minitip_MAX_ID_NO) head.argno++;
@@ -1282,7 +1299,7 @@ int parse_macro_definition(const char *str)
         init_parse(str);
         if(is_macro_name(&head.name)) R('(');
         while(v>=0){
-           is_variable(&var); v--; while(v>=0 && (R('|')||R(sep)) && 0);
+           is_variable(&var); v--; while(v>=0 && (R('|')||R(X_sep)) && 0);
         }
         harderr(e_MDEF_UNUSED); /* don't adjust error position */
         return 1;

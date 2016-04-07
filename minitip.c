@@ -14,7 +14,7 @@
 /* Version and copyright */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	1
-#define VERSION_SUB	2
+#define VERSION_SUB	3
 #define VERSION_STRING	mkstringof(VERSION_MAJOR.VERSION_MINOR.VERSION_SUB)
 
 #define COPYRIGHT	\
@@ -564,8 +564,8 @@ static int com_syntax(const char *argv, const char *line)
 "  as 'abc' denotes its own entropy. In entropy expressions letters 'H' and\n"
 "  'I' can be omitted, and optionally the enclosing brackets. Comma (default)\n"
 "  or a specified character separates lists. With ',' as separator any of\n"
-"  'I(ab,xy|z)', '(ab,xy|z)', or even 'ab,cd|z' denotes the conditional\n"
-"  mutual information of 'a,b' and 'c,d' given 'z'.\n"
+"  'I(ab,xy|z)', '(ab,xy|z)', or even 'ab,xy|z' denotes the conditional\n"
+"  mutual information of 'a,b' and 'x,y' given 'z'.\n"
 "Enter 'style full' or 'style simple [separator char]' to set the style.\n"
 "Warning: changing the style deletes all stored constraints.\n"
 "The present style is ");

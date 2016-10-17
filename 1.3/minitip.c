@@ -1573,6 +1573,8 @@ int main(int argc, char *argv[])
         }
     }
     if(i<argc){ /* further arguments; do as instructed */
+        initialize_random();
+        setup_standard_macros();
         return check_offline(argc-i,argv+i,quietflag);
     }
     if(quietflag || endargs) return EXIT_ERROR; /* -q flag and no argument */

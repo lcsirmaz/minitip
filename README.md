@@ -32,7 +32,7 @@ Entropy expressions were entered using the **simple** (or lazy) style:
 and mutual information can be omitted; and comma (,) is used as a separator
 instead of semicolon (;). For **full style** use the flag **-S** as follows:
 
-    PROMPT> minitip -S '[a;b;c;d]+I(e;b|c)+I(e;c|b)+((b;c|e)>=-3*I(e;a,d|b,c)'
+    PROMPT> minitip -S '[a;b;c;d]+I(e;b|c)+I(e;c|b)+I(b;c|e)>=-3*I(e;a,d|b,c)'
     [a;b;c;d]+I(e;b|c)+I(e;c|b)+I(b;c|e)>=-3*I(e;a,d|b,c)
          ==> TRUE
 

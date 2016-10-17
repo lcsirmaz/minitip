@@ -79,7 +79,7 @@ Accepted flags and exit values are:
 | Flag  | meaning  |
 |:------|:-----| 
 | -h    | print a short help and quit |
-| -s    | use **minimal** style (default) |
+| -s    | use **minimal** style (default, same as -s,) |
 | -s\<chr\> | **minimal** style, use \<chr\> as separator character |
 | -S    | use **full** style |
 | -q    | quiet, just check, don't print anything. Must have an argument to check |

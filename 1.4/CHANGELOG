@@ -1,0 +1,16 @@
+1.3 -> 1.4
+
+additional run time parameters under "set"
+  constrlimit  = maximal number of constraints
+  macrolimit   = maximal number of macros
+  run       = strict/loose: how to handle errors (continue with non-fatal errors)
+  comment   = yes/no (show comments in run file)
+  abbrev    = yes/no (allow abbreviated commands)
+  save      = yes/no/ask (save history at exit)
+  simplevar = basic/extended (allow letter plus digits in simple style)
+  history   = default ".minitip" history file
+
+additional command: save - save history
+
+If .minitiprc found, it is executed as a run file. It is searched in
+the working directory, then in the home directory.

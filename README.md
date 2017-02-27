@@ -57,6 +57,7 @@ at the terminal. Here is an example session.
      syntax          how to enter entropy formulas
      set             list / set runtime parameters
      dump            dump constraints and macro definitions
+     save            save command history
      about           history, license, author, etc
     minitip: add (e,ad|bc)=0
     minitip: list all
@@ -71,7 +72,7 @@ at the terminal. Here is an example session.
     Checking without constraints ...
           ==> FALSE
     minitip: quit
-    Save the commands to the history file .minitip (y/n)? n
+    Save the commands to the command history file .minitip (y/n)? n
     PROMPT> 
 
 Accepted flags and exit values are:
@@ -84,7 +85,7 @@ Accepted flags and exit values are:
 | -S    | use **full** style |
 | -q    | quiet, just check, don't print anything. Must have an argument to check |
 | -e    | last flag, use when the expression starts with a minus sign |
-| -f \<file\> | use \<file\> as the history file (default: **.minitip**) |
+| -f \<file\> | use \<file\> as the command history file (default: **.minitip**) |
 | -v    | print version, copyright, and quit |
 
 | Exit values | (when checking validity of the first argument) |
@@ -93,6 +94,53 @@ Accepted flags and exit values are:
 | 1         | the expression (with the given constraints) checked FALSE |
 | 2         | syntax error in the expression or in some of the constraints |
 | 3         | other error (problem too large, LP failure, etc) |
+
+#### UTILITIES
+
+Minitip has several convenience features.
+
+    run \<file\>
+
+reads the lines from \<file\> and executes them as they were entered from
+the keyboard.
+
+    dump \<file\>
+
+appends all constraints and macros to the given /<file/>. The file can
+edited and executed to recover the dumped constraints and macros.
+
+    save \<command-history-file\>
+
+saves the commands entered during the session to the given file.
+
+Some features of minitip can be fine-tuned by the 'set' command, such as 
+
+* the time and iteration limit on the LP solver; 
+* how many macros and constraints are accepted; 
+* whether executing command from a file should stop at all errors, or only at fatal ones;
+* whether comment lines(lines startig with # mark) are printed or not
+* command can be abbreviated to any unique prefix
+* when finishing, command line history should be automatically saved or not
+* in simple style variables ending with digits are accepted or not
+
+When using interactively, minitip looks for a '.minitiprc' file in the
+working directory, then in the home directory. If found, it is executed
+before the first prompt. An example .minitiprc file can be
+
+    # sample .minitiprc
+    # comment lines in run files are printed
+    set comment=yes
+    # don't ask when quitting minitip
+    set save=no
+    # allow abbreviated commands
+    set abbrev=yes
+    # don't stop run files for non-fatal errors
+    set run=loose
+    # define a macro
+    macro D(a,b,c)=(a,b|c)+(a,c|b)+(b,c|a)
+    # print all commands
+    help
+    # that's all ...
 
 
 #### METHOD

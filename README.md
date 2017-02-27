@@ -97,19 +97,19 @@ Accepted flags and exit values are:
 
 #### UTILITIES
 
-Minitip has several convenience features.
+Minitip has several convenience features, such as
 
-    run \<file\>
+    run <file>
 
 reads the lines from \<file\> and executes them as they were entered from
 the keyboard.
 
-    dump \<file\>
+    dump <file>
 
-appends all constraints and macros to the given /<file/>. The file can
+appends all constraints and macros to the given \<file\>. The file can
 edited and executed to recover the dumped constraints and macros.
 
-    save \<command-history-file\>
+    save <command-history-file>
 
 saves the commands entered during the session to the given file.
 

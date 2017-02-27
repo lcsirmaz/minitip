@@ -101,13 +101,13 @@ Minitip has several convenience features, such as
 
     run <file>
 
-reads the lines from \<file\> and executes them as they were entered from
-the keyboard.
+reads the lines from \<file\> and executes them as if they were entered from
+the keyboard. The file can be created by any text editor.
 
     dump <file>
 
-appends all constraints and macros to the given \<file\>. The file can
-edited and executed to recover the dumped constraints and macros.
+appends all constraints and macros to the given \<file\>. The file can be
+edited and then executed to recover the dumped constraints and macros.
 
     save <command-history-file>
 

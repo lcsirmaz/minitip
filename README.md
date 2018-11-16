@@ -59,6 +59,7 @@ at the terminal. Here is an example session.
      dump            dump constraints and macro definitions
      save            save command history
      about           history, license, author, etc
+     args            accepted command line arguments
     minitip: add (e,ad|bc)=0
     minitip: list all
     Constraints (total 1)
@@ -86,6 +87,9 @@ Accepted flags and exit values are:
 | -q    | quiet, just check, don't print anything. Must have an argument to check |
 | -e    | last flag, use when the expression starts with a minus sign |
 | -f \<file\> | use \<file\> as the command history file (default: **.minitip**) |
+| -c \<file\> | use \<file\> as init file (default: **.minitiprc**) |
+| -m \<macro\> | add the macro definition |
+| -c-   | don't use init file |
 | -v    | print version, copyright, and quit |
 
 | Exit values | (when checking validity of the first argument) |
@@ -111,7 +115,10 @@ edited and then executed to recover the dumped constraints and macros.
 
     save <command-history-file>
 
-saves the commands entered during the session to the given file.
+saves the commands entered during the session to the given file. The history
+file is loaded using the command line argument
+
+    -f <history-file>
 
 Some features of minitip can be fine-tuned by the 'set' command, such as 
 
@@ -123,9 +130,10 @@ Some features of minitip can be fine-tuned by the 'set' command, such as
 * when finishing, command line history should be automatically saved or not
 * in simple style variables ending with digits are accepted or not
 
-When using interactively, minitip looks for a '.minitiprc' file in the
-working directory, then in the home directory. If found, it is executed
-before the first prompt. An example .minitiprc file can be
+When started, minitip looks for an init file (specified after the '-c'
+command-line argument) in the working directory, then in the home directory.
+If found, it is executed before the first prompt. An example init file 
+can be
 
     # sample .minitiprc
     # comment lines in run files are printed
@@ -186,7 +194,4 @@ on linux without any problem:
 
 Laszlo Csirmaz, <csirmaz@ceu.edu>
 
-#### DATE
-
-10-Feb-2016
 

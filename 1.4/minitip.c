@@ -14,11 +14,11 @@
 /* Version and copyright */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	4
-#define VERSION_SUB	1
+#define VERSION_SUB	2
 #define VERSION_STRING	mkstringof(VERSION_MAJOR.VERSION_MINOR.VERSION_SUB)
 
 #define COPYRIGHT	\
-"Copyright (C) 2016-2017 Laszlo Csirmaz, Central European University, Budapest"
+"Copyright (C) 2016-2018 Laszlo Csirmaz, Central European University, Budapest"
 
 /*----------------------------------------------------------------------------*/
 
@@ -241,14 +241,15 @@ static com_func_t
   com_quit,	/* quit */
   com_help,	/* help */
   com_check,	/* check */
-  com_add,	/* add restriction */
-  com_list,	/* list restriction */
-  com_del,	/* delete restriction */
+  com_add,	/* add constraint */
+  com_list,	/* list constraints */
+  com_del,	/* delete constraint */
   com_style,	/* style: change / help*/
   com_syntax,	/* formula syntax help */
   com_nocon,	/* check without constraints */
   com_diff,	/* difference of two expressions */
   com_about,	/* print license info */
+  com_args,	/* command line arguments */
   com_macro,	/* handle macros: del, list, define */
   com_batch,	/* execute commands from a file */
   com_save,	/* save history */
@@ -296,9 +297,10 @@ static COMMAND commands[] = {
 {"style",  com_style, 0, pm_style,  NULL,	"show / change formula style"},
 {"syntax", com_syntax,0, pm_syntax, NULL,	"describe how to enter entropy formulas"},
 {"set",    com_set,   0, pm_set,    am_set,	"list / set runtime parameters"},
-{"dump",   com_dump,  1, NULL,      NULL,	"dump constraints and macro definitions"},
-{"save",   com_save,  1, NULL,      NULL,	"save command history"},
+{"dump",   com_dump,  1, NULL,      NULL,	"dump constraints and macro definitions to a file"},
+{"save",   com_save,  1, NULL,      NULL,	"save command history to a file"},
 {"about",  com_about, 0, NULL,      NULL,	"history, license, author, etc"},
+{"args",   com_args,  0, NULL,      NULL,       "accepted command line arguments"},
 {NULL,     NULL,      0, NULL,      NULL,	NULL }
 };
 
@@ -539,6 +541,7 @@ static void error_message(const char *orig)
 * procedures executing particular commands
 *
 *   com_about(char *arg, char *line)    version and copyright
+*   com_args (char *arg, char *line)    command line arguments
 *   com_help (char *arg, char *line)    short help on commands
 *   com_quit (char *arg, char *line)    quit, no arguments accepted
 *   com_syntax(char *arg,char *line)    help on syntax with several topics
@@ -574,6 +577,29 @@ static int com_about(UNUSED const char *arg, const char *line)
 "by the Free Software Foundation http://www.gnu.org/licenses/gpl.html\n"
 "There is ABSOLUTELY NO WARRANTY, use at your own risk.\n\n"
 COPYRIGHT
+"\n");
+    return 0; /* OK */
+}
+
+/** ARGS -- list of command line arguments **/
+static int com_args(UNUSED const char *arg, const char *line)
+{   if(!line)
+    printf(
+"the following command line flags are accepted when used interactively:\n"
+"   -s         -- start using minimal syntax style (default, same as '-s,')\n"
+"   -s<chr>    -- minimal style using <chr> as the separator character\n"
+"   -S         -- start using full (standard) syntax style\n"
+"   -f <file>  -- use <file> as the command history file (default: " DEFAULT_HISTORY_FILE ")\n"
+"   -c <file>  -- use <file> as the config file (default: " DEFAULT_RC_FILE ")\n"
+"   -c-        -- don't read the default config file\n"
+"   -m <macro> -- add this macro definition\n"
+"\n"
+"the following flags imply non-iteractive usage:\n"
+"   -q         -- quiet, just check, don't print anything\n"
+"   -v         -- version and copyright information\n"
+"   -e         -- last flag, followed by the expression to be checked\n"
+"   <expr> <constr1> <constr2> ...\n"
+"              -- <expr> is checked using the given constraints\n"
 "\n");
     return 0; /* OK */
 }
@@ -624,8 +650,8 @@ static int com_syntax(const char *argv, const char *line)
 /** STYLE **/
     if(strncasecmp(argv,"style",3)==0){ // on style
         printf(
-"Minitip can work in 'full' or in 'simple' style, which determines how\n"
-"  random =>variables and =>entropy terms are parsed.\n"
+"Minitip can work in 'full' (standard) or in 'simple' style, which\n"
+"  determines random =>variables and =>entropy terms are parsed.\n"
 "FULL (or standard) style\n"
 "  Random variables are identifiers such as X12 or Winter. The entropy\n"
 "  and mutual information follows the standard: H(X1,Winter) is the\n"
@@ -640,7 +666,7 @@ static int com_syntax(const char *argv, const char *line)
 "  other specified character. With , as separator I(ab,xy|z) or (ab,xy|z)\n"
 "  is the conditional mutual information of a,b and x,y given z. The same\n"
 "  entropy term with separator : is written as (ab:xy|z).\n"
-"Enter 'style full' or 'style simple [separator]' to set the style.\n"
+"Enter 'style full' or 'style simple <separator-char>' to set the style.\n"
 "Warning: changing the style deletes all stored =>constraints.\n"
 "The present style is ");
         if(minitip_style==syntax_short) printf(
@@ -690,7 +716,7 @@ static int com_syntax(const char *argv, const char *line)
 "     X(ab%1$cc|a)\n",minitip_sepchar);
         else printf(
 // full style
-"In full style it follows the standard one:\n"
+"In full (standard) style it follows the standard notation:\n"
 " a) H(W,S)       entropy of the joint distribution of W and S\n"
 " b) H(W,S|F,T)   conditional entropy\n"
 " c) I(W,F;S)     mutual information of W,F and S\n"
@@ -843,7 +869,7 @@ static int com_add(const char* line,const char *orig)
         printf(" This constraint is #%d, no need to add again\n",i+1);
         return 1; /* abort */
     }
-    if(parse_constraint(line,0)){ // some error
+    if(parse_constraint(line,0)!=PARSE_OK){ // some error
         error_message(orig);
         return 2; /* abort */
     }
@@ -1076,10 +1102,10 @@ static int com_style(const char *argv, const char *line)
 static int standard_macros=0;
 static void setup_standard_macros(void)
 {   set_syntax_style(syntax_short,',',1);
-    if(parse_macro_definition("H(a)=a")) error_message(NULL);
-    if(parse_macro_definition("H(a|b)=ab-b")) error_message(NULL);
-    if(parse_macro_definition("I(a,b)=a+b-ab")) error_message(NULL);
-    if(parse_macro_definition("I(a,b|c)=ac+bc-c-abc")) error_message(NULL);
+    if(parse_macro_definition("H(a)=a")!=PARSE_OK) error_message(NULL);
+    if(parse_macro_definition("H(a|b)=ab-b")!=PARSE_OK) error_message(NULL);
+    if(parse_macro_definition("I(a,b)=a+b-ab")!=PARSE_OK) error_message(NULL);
+    if(parse_macro_definition("I(a,b|c)=ac+bc-c-abc")!=PARSE_OK) error_message(NULL);
     standard_macros = macro_total; 
 //  if(parse_macro_definition("D(a,b,c)=(a,b|c)+(b,c|a)+(c,a|b)")) error_message(NULL);
 }
@@ -1103,7 +1129,7 @@ static int com_macro_add(const char *arg, const char* line)
          return 0;
     }
     /* 0: error, 1: keep old, 2: replace */
-    if(parse_macro_definition(arg)){ /* some error */
+    if(parse_macro_definition(arg)!=PARSE_OK){ /* some error */
         error_message(line); return 2; /* abort */
     }
     return 0; /* OK, stored */
@@ -1201,7 +1227,7 @@ static int com_macro(const char *arg, const char* line)
     if(!*arg){
        if(macro_total<=standard_macros){
            if(!line) printf(
-" add, list, delete macros. For more help enter 'syntax macro'.\n");
+" add, list, or delete macros. For more help, type 'syntax macro'.\n");
            return 0;
        } else {
            return com_macro_list(arg,line);
@@ -1413,7 +1439,10 @@ static void set_param(const char *str,int value)
 static int com_save(const char *arg, const char *line)
 {char *filename;
     if(*arg=='?' || strcmp(arg,"help")==0){
-       if(!line) printf("save command history to %s or to a specified file\n",HISTORY_FILE);
+       if(!line) printf(
+        " Type 'save' or 'save <file>' to save command history to\n"
+        " the default '%s', or to <file>. Load history using the\n"
+        " command line argument '-f <file>'\n",HISTORY_FILE);
        return 0;
     }
     if(line) printf("%s\n",line);
@@ -1441,7 +1470,9 @@ static int com_save(const char *arg, const char *line)
 static int com_dump(const char *arg, const char *line)
 {FILE *dump_file; char *filename; const char *errmsg; int idx;
     if(!*arg || *arg=='?' || strcmp(arg,"help")==0){
-       if(!line) printf(" dump constraints and macro definitions to a file\n");
+       if(!line) printf(
+       " type 'dump <file>' to save constraints and macro definitions\n"
+       " These can be reloaded by the 'run <file>' command\n");
        return 0;
     }
     if(line) printf("%s\n",line);
@@ -1498,7 +1529,7 @@ static int execute_batch_file(FILE *batch_file)
 static int com_batch(const char *arg,const char *line)
 {FILE *batch_file; char *filename; const char *errmsg; int level;
     if(!*arg || *arg=='?' || strcmp(arg,"help")==0){
-        if(!line) printf(" execute minitip commands from a file\n");
+        if(!line) printf(" 'run <file>' executes minitip commands from <file>\n");
         return 0; /* OK */
     }
     filename=NULL; errmsg=NULL; batch_file=NULL;
@@ -1530,9 +1561,21 @@ static int com_batch(const char *arg,const char *line)
     return 0; /* OK */
 }
 
+/** result texts of checking **/
+
+#define res_TRUE	"    ==> TRUE"
+#define res_TRUEEQ	"    ==> TRUE, simplifies to 0=0"
+#define res_TRUEGE	"    ==> TRUE, simplifies to 0>=0"
+#define res_FALSE	"    ==> FALSE"
+#define res_ONLYGE	"    ==> FALSE, only >= is true"
+#define res_ONLYLE	"    ==> FALSE, only <= is true"
+#define res_CONSTR	" with the constraints"
+
 /** CHECK -- check entropy relation with all constraints **/
+
 static int com_check(const char *line, const char *orig)
-{int i,keep;
+{int i,keep,parse;;
+    if(in_minitiprc) return 0;
     if(!*line || *line=='?' || strcmp(line,"help")==0){
         if(!orig)printf(" Check the validity of an entropy relation with all constraints.\n"
                         " Enter 'syntax relation' for more help.\n");
@@ -1542,43 +1585,62 @@ static int com_check(const char *line, const char *orig)
     for(i=0;i<constraint_no;i++){
         parse_constraint(constraint_table[i],keep); keep=1;
     }
-    if(parse_entropy(line,keep)){/* some error */
-        error_message(orig);
-        return 1;
+    parse=parse_entropy(line,keep);
+    if(parse==PARSE_ERR){
+          error_message(orig);
+          return 1;
     }
     if(orig) printf("%s\n",orig);
-    check_expression(line,1);
+    switch(parse){
+      case PARSE_EQ:
+          printf(res_TRUEEQ "\n"); break;
+      case PARSE_GE:
+          printf(res_TRUEGE "\n"); break;
+      default:
+          check_expression(line,1); break;
+    }
     return 0; /* OK */
 }
 
 /** NOCON -- check entropy relation without constraints **/
 static int com_nocon(const char *line, const char *orig)
-{   if(!*line || *line=='?' || strcmp(line,"help")==0){
+{int parse;
+    if(in_minitiprc) return 0;
+    if(!*line || *line=='?' || strcmp(line,"help")==0){
         if(!orig)printf(" Crosscheck an entropy relation without any constraints.\n"
                         " Enter 'syntax relation' for more help.\n");
         return 0;
     }
-    if(parse_entropy(line,0)){ /* some error */
+    parse=parse_entropy(line,0);
+    if(parse==PARSE_ERR){
         error_message(orig);
         return 1;
     }
     if(orig) printf("%s\n",orig);
-    if(constraint_no>0){
-        printf("Checking without constraints ...\n");
+    switch(parse){
+      case PARSE_EQ:
+         printf(res_TRUEEQ "\n"); break;
+      case PARSE_GE:
+         printf(res_TRUEGE "\n"); break;
+      default:
+         if(constraint_no>0){
+           printf("Checking without constraints ...\n");
+         }
+         check_expression(line,0); break;
     }
-    check_expression(line,0);
     return 0;
 }
 
 /** DIFF -- print difference of two expressions **/
 static int com_diff(const char *line, const char *orig)
-{   if(!*line || *line=='?' || strcmp(line,"help")==0){
+{   if(in_minitiprc) return 0;
+    if(!*line || *line=='?' || strcmp(line,"help")==0){
         if(!orig)
             printf(" Show the difference of two formulas separated by '=='\n"
                    " Enter 'syntax zap' for more help.\n");
         return 0;
     }
-    if(parse_diff(line)){ /* some error */
+    if(parse_diff(line)!=PARSE_OK){ /* some error */
         error_message(orig);
         return 1;
     }
@@ -1620,34 +1682,36 @@ static int compute_expression(int i)
     parse_constraint(constraint_table[i],1);
     return 0;
 }
+
 static void check_expression(const char *src, int with_constraints)
-{char *ret; char *constr;
+{char *ret; char *constr,*outstr;
     expr_to_check=src; use_constraints=with_constraints;
-    constr= with_constraints && constraint_no>0
-         ? " with the constraints" : "";
     ret=call_lp(compute_expression,get_param("iterlimit"),get_param("timelimit"));
+    constr= with_constraints && constraint_no>0 ? res_CONSTR : "";
     if(ret==EXPR_TRUE){
-        printf("      ==> TRUE%s\n",constr);
+        outstr=res_TRUE;
     } else if(ret==EXPR_FALSE){
-        printf("      ==> FALSE\n");
+        outstr=res_FALSE;
     } else if(ret==EQ_GE_ONLY){
-        printf("      ==> FALSE, only >= is true%s\n",constr);
+        outstr=res_ONLYGE;
     } else if(ret==EQ_LE_ONLY){
-        printf("      ==> FALSE, only <= is true%s\n",constr);
+        outstr=res_ONLYLE;
     } else {
         printf("ERROR in solving the LP: %s\n",ret);
+        return;
     }
+    printf("%s%s\n",outstr,constr);
 }
 static int check_offline_expression(const char *src, int quiet)
 {char *ret; char *constr,*outstr;
-   expr_to_check=src; use_constraints=1;
+    expr_to_check=src; use_constraints=1;
     ret=call_lp(compute_expression,get_param("iterlimit"),get_param("timelimit"));
     if(!quiet){
-      constr= constraint_no>0? " with the constraints" : "";
-      if(ret==EXPR_TRUE){       outstr="     ==> TRUE"; }
-      else if(ret==EXPR_FALSE){ outstr="     ==> FALSE"; constr=""; }
-      else if(ret==EQ_GE_ONLY){ outstr="     ==> FALSE, only >= is true"; }
-      else if(ret==EQ_LE_ONLY){ outstr="     ==> FALSE, only <= is true"; }
+      constr= constraint_no>0 ? res_CONSTR : "";
+      if(ret==EXPR_TRUE){       outstr=res_TRUE; }
+      else if(ret==EXPR_FALSE){ outstr=res_FALSE; constr=""; }
+      else if(ret==EQ_GE_ONLY){ outstr=res_ONLYGE; }
+      else if(ret==EQ_LE_ONLY){ outstr=res_ONLYLE; }
       else {
         printf("ERROR in solving the LP: %s\n",ret);
         return EXIT_ERROR;
@@ -1667,7 +1731,7 @@ static int check_offline_expression(const char *src, int quiet)
 *    determines the program's exit value.
 */
 static int check_offline(int argc, char *argv[], int quiet)
-{int i,j,keep;
+{int i,j,keep,parse;
     keep=0;
     for(i=1;i<argc;i++){
         for(j=0;j<constraint_no;j++) if(strcmp(argv[i],constraint_table[j])==0){
@@ -1675,7 +1739,7 @@ static int check_offline(int argc, char *argv[], int quiet)
                      i,j+1,argv[i]);
             return EXIT_ERROR; // other error
         }
-        if(parse_constraint(argv[i],keep)){
+        if(parse_constraint(argv[i],keep)!=PARSE_OK){
             if(!quiet) error_message(argv[i]);
             return EXIT_SYNTAX; // syntax error
         }
@@ -1687,9 +1751,20 @@ static int check_offline(int argc, char *argv[], int quiet)
         constraint_no++;
         keep=1;
     }
-    if(parse_entropy(argv[0],keep)){
+    parse=parse_entropy(argv[0],keep);
+    if(parse==PARSE_ERR){
         if(!quiet) error_message(argv[0]);
         return EXIT_SYNTAX; // syntax error
+    }
+    switch(parse){
+      case PARSE_EQ:
+        if(!quiet) printf(res_TRUEEQ "\n");
+        return EXIT_TRUE;
+      case PARSE_GE:
+        if(!quiet) printf(res_TRUEGE "\n");
+        return EXIT_TRUE;
+      default:
+        break;
     }
     return check_offline_expression(argv[0],quiet);
 }
@@ -1727,14 +1802,19 @@ static void extract_randomness(const char *from)
 *    search for .minitiprc and executes the commands in it.
 *    Return value: non-zero when there was an error
 */
+static char *RC_FILE=DEFAULT_RC_FILE;
+
 static int execute_minitiprc(void)
 {FILE *rcfile; char buff[MAX_PATH_LENGTH+20];
-    rcfile=fopen(DEFAULT_RC_FILE,"r");
+    if(RC_FILE==NULL) return 0;
+    rcfile=fopen(RC_FILE,"r");
     if(!rcfile){
        char *home=getenv("HOME");
        if(home){
-           strncpy(buff,home,MAX_PATH_LENGTH); buff[MAX_PATH_LENGTH]=0;
-           strncat(buff,"/" DEFAULT_RC_FILE,MAX_PATH_LENGTH+20-strlen(home));
+           strncpy(buff,home,MAX_PATH_LENGTH);buff[MAX_PATH_LENGTH]=0;
+           strcat(buff,"/");
+           strncat(buff,RC_FILE,MAX_PATH_LENGTH+15-strlen(home));
+           buff[MAX_PATH_LENGTH+15]=0;
            rcfile=fopen(buff,"r");
        }
     }
@@ -1765,14 +1845,17 @@ inline static void short_help(void){printf(
 "for interactive usage, or\n"
 "    minitip [flags] <expression> [constraint1] [constraint2] ... \n"
 "Flags:\n"
-"   -h        -- this help\n"
-"   -s        -- start using minimal syntax style (default, same as -s,)\n"
-"   -s<chr>   -- minimal style, use <chr> as the separator character\n"
-"   -S        -- start using full syntax style\n"
-"   -q        -- quiet, just check, don't print anything\n"
-"   -e        -- last flag, use when the expression starts with '-'\n"
-"   -f <file> -- use <file> as the command history file (default: '" DEFAULT_HISTORY_FILE "')\n"
-"   -v        -- version and copyright\n"
+"   -h         -- this help\n"
+"   -s         -- start using minimal syntax style (default, same as '-s,')\n"
+"   -s<chr>    -- minimal style, use <chr> as the separator character\n"
+"   -S         -- start using full syntax style\n"
+"   -q         -- quiet, just check, don't print anything\n"
+"   -e         -- last flag, use when the expression starts with '-'\n"
+"   -f <file>  -- use <file> as the command history file (default: '" DEFAULT_HISTORY_FILE "')\n"
+"   -c <file>  -- use <file> as the config file (default: '" DEFAULT_RC_FILE "')\n"
+"   -c-        -- don't read the default config file\n"
+"   -m <macro> -- add macro definition\n"
+"   -v         -- version and copyright\n"
 "Exit value when checking validity of <expression>:\n"
 "    " mkstringof(EXIT_TRUE)  "  -- the expression (with the given constrains) checked TRUE\n"
 "    " mkstringof(EXIT_FALSE) "  -- the expression (with the given constrains) checked FALSE\n"
@@ -1784,6 +1867,19 @@ inline static void short_help(void){printf(
 int main(int argc, char *argv[])
 {char *line; int i; int quietflag, endargs, styleset;
  char *histfile; syntax_style_t mi_style; char mi_sepchar;
+
+    /* some default values */
+    if(HISTORY_FILE==NULL) HISTORY_FILE=strdup(DEFAULT_HISTORY_FILE);
+    resize_constraint_table(minitip_INITIAL_CONSTR);
+    set_param("constrlimit",minitip_INITIAL_CONSTR);
+    resize_macro_table(minitip_INITIAL_MACRONO);
+    set_param("macrolimit",minitip_INITIAL_MACRONO);
+    initialize_random();
+    setup_standard_macros();
+    minitip_style=minitip_INITIAL_STYLE;
+    minitip_sepchar=minitip_INITIAL_SEPCHAR;
+    set_syntax_style(minitip_INITIAL_STYLE,minitip_INITIAL_SEPCHAR,1);
+
     /* argument handling */
     quietflag=0; endargs=0; styleset=0; histfile=NULL;
     for(i=1; i<argc && endargs==0 && argv[i][0]=='-';i++){
@@ -1819,51 +1915,73 @@ int main(int argc, char *argv[])
                     if((unsigned char)(*line)< 0x20 || (unsigned char)(*line)==0x7f || (unsigned char)(*line)==0xff ) *line='_';
                 }
                 break;
+      case 'c': if(argv[i][2]=='-'){
+                    RC_FILE=NULL; break;
+                }
+                i++; line=i<argc?argv[i]:NULL;
+                if(!line || !*line){
+                   printf("Flag '-c' requires a file name\n");
+                   return EXIT_ERROR;
+                }
+                if(strlen(line)>MAX_PATH_LENGTH){
+                   printf("File name after flag '-c' is too long\n");
+                   return EXIT_ERROR;
+                }
+                RC_FILE=line;
+                break;
+      case 'm': line=&(argv[i][2]);
+                if(*line==0){ i++; if(i<argc){ line=argv[i]; } }
+                if(!line || !*line){
+                   printf("Missing macro definition after the flag '-m'\n");
+                   return EXIT_ERROR;
+                }
+                if(styleset){ minitip_style=mi_style; minitip_sepchar=mi_sepchar; }
+                set_syntax_style(minitip_style,minitip_sepchar,1);
+                if(parse_macro_definition(line)!=PARSE_OK){
+                   printf("Macro definition after flag '-m'\n");
+                   error_message(line);
+                   return EXIT_ERROR;
+                }
+                break;
       case 'q': quietflag=1; break;
       case 'e': endargs=1; break;
       default:  printf("unknown flag '%s', use '-h' for help\n",argv[i]); return EXIT_ERROR;
         }
     }
-    
-    if(HISTORY_FILE==NULL) HISTORY_FILE=strdup(DEFAULT_HISTORY_FILE);
-    resize_constraint_table(minitip_INITIAL_CONSTR);
-    set_param("constrlimit",minitip_INITIAL_CONSTR);
-    resize_macro_table(minitip_INITIAL_MACRONO);
-    set_param("macrolimit",minitip_INITIAL_MACRONO);
-    if(i<argc){ /* further arguments; do as instructed */
-        if(styleset){ minitip_style=mi_style; minitip_sepchar=mi_sepchar; }
-        set_syntax_style(minitip_style,minitip_sepchar,1);
-        initialize_random();
-        setup_standard_macros();
-        return check_offline(argc-i,argv+i,quietflag);
-    }
-    if(quietflag || endargs) return EXIT_ERROR; /* -q flag and no argument */
-    initialize_random();
-    setup_standard_macros();
+    /* reset default style */
+    minitip_style=minitip_INITIAL_STYLE;
+    minitip_sepchar=minitip_INITIAL_SEPCHAR;
     set_syntax_style(minitip_INITIAL_STYLE,minitip_INITIAL_SEPCHAR,1);
     in_minitiprc=1;
+    /* execute the rc file */
     if(execute_minitiprc()){
-        printf("Error in " DEFAULT_RC_FILE "\n");
-        return EXIT_ERROR;
+       printf("Error in rc file %s\n",RC_FILE);
+       return EXIT_ERROR;
     }
     in_minitiprc=0;
-    if(histfile){ // command line override
-        free(HISTORY_FILE); HISTORY_FILE=histfile;
-    }
     if(styleset){ // command line override
         if(constraint_no>0 && 
           (minitip_style!=mi_style || minitip_sepchar!=mi_sepchar)){
-            if(constraint_no==1)
-              printf("Deleting the constraint as it was");
-            else
-              printf("Deleteting all (%d) constraints as they were",constraint_no);
-            printf(" entered in different style\n");
+            if(!quietflag){
+              if(constraint_no==1)
+                printf("Deleting the constraint as it was");
+              else
+                printf("Deleteting all (%d) constraints as they were",constraint_no);
+              printf(" entered in different style\n");
+            }
             while(constraint_no>0){
                constraint_no--; free(constraint_table[constraint_no]);
             }
         }
         minitip_style=mi_style; minitip_sepchar=mi_sepchar;
         set_syntax_style(minitip_style,minitip_sepchar,get_param("simplevar"));
+    }
+    if(i<argc){ /* further arguments; do as instructed */
+        return check_offline(argc-i,argv+i,quietflag);
+    }
+    if(quietflag || endargs) return EXIT_ERROR; /* -q flag and no argument */
+    if(histfile){ // command line override
+        free(HISTORY_FILE); HISTORY_FILE=histfile;
     }
     initialize_readline();
     for(done=0;!done;){

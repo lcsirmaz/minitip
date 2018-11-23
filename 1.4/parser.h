@@ -115,21 +115,28 @@ extern int macro_total;
 *               parsing
 *      keep==0 start a new set of random variables.
 *    Returns
-*      0 -- OK, entropy_expr is filled
-*      1 -- some error, syntax_error is filled
+*      PARSE_OK  -- OK, entropy_expr is filled
+*      PARSE_ERR -- some error, syntax_error is filled
+*      PARSE_EQ  -- simplifies to 0=0
+*      PARSE_GE  -- simplifies to 0>=0
 *
 * int parse_diff(char *str)
-*    parse str as a zap (==) string. Return value is as above,
+*    parse str as a zap (==) string. Return value is PARSE_OK or PARSE_ERR,
 *
 * int parse_constraint(char *str, int keep)
 *    parse str as a constraint: this is an expression, or functional
 *    dependency, independence, or a Markov chain. Return value is
-*    as above.
+*    PARSE_OK or PARSE_ERR
 *
 * int parse_macro_definition(char *str)
 *    parse str as a macro definition. If successful, also stores the
-*    macro at the next macro slot. Return value is as above.
+*    macro at the next macro slot. Return value is PARSE_OK or PARSE_ERR.
 */
+#define PARSE_OK	0
+#define PARSE_ERR	1
+#define PARSE_EQ	2	// 0=0
+#define PARSE_GE	3	// 0>=0
+
 int parse_entropy(const char *str, int keep);
 int parse_diff(const char *str);
 int parse_constraint(const char *str, int keep);

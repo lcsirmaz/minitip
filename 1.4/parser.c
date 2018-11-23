@@ -1147,17 +1147,18 @@ static void parse_entropyexpr(const char *str, int keep, int etype)
 
 int parse_entropy (const char *str, int keep)
 {   parse_entropyexpr(str,keep,expr_check);
+    if(syntax_error.softerrstr||syntax_error.harderrstr) return PARSE_ERR;
     if(entropy_expr.n==0){
-        harderr(entropy_expr.type==ent_eq? e_SIMPLIFIES_EQ : e_SIMPLIFIES_GE);
+        return entropy_expr.type==ent_eq? PARSE_EQ : PARSE_GE;
     }
     must_show(non_trivial_expr(),e_POSCOMBINATION);
     must_show(entropy_expr.n>1,e_SINGLE_TERM);
-    return (syntax_error.softerrstr|| syntax_error.harderrstr) ? 1 : 0;
+    return (syntax_error.softerrstr||syntax_error.harderrstr) ? PARSE_ERR : PARSE_OK;
 }
 
 int parse_diff(const char *str)
 {   parse_entropyexpr(str,0,expr_diff);
-    return (syntax_error.softerrstr|| syntax_error.harderrstr) ? 1 : 0;
+    return (syntax_error.softerrstr|| syntax_error.harderrstr) ? PARSE_ERR : PARSE_OK;
 }
 
 /***********************************************************************
@@ -1188,7 +1189,7 @@ static int is_funcdep(int v1,int v2){
     item.var2=v2;
     convert_item_to_expr();
     must(X_chr==0,e_EXTRA_TEXT);
-    return (syntax_error.softerrstr|| syntax_error.harderrstr) ? 1 : 0;
+    return (syntax_error.softerrstr|| syntax_error.harderrstr) ? PARSE_ERR : PARSE_OK;
 }
 static int is_indep(char sep, int v1,int v2)
 {int v,vall; int oldpos; int i,j;
@@ -1220,7 +1221,7 @@ static int is_indep(char sep, int v1,int v2)
     }
     item.item_type=H1; item.var1=vall; item.multiplier=-1.0;
     convert_item_to_expr();
-    return (syntax_error.softerrstr|| syntax_error.harderrstr) ? 1 : 0;
+    return (syntax_error.softerrstr|| syntax_error.harderrstr) ? PARSE_ERR : PARSE_OK;
 }
 static int is_Markov(char sep, int v1,int v2)
 {int v,cnt; int oldpos;
@@ -1242,7 +1243,7 @@ static int is_Markov(char sep, int v1,int v2)
     }
     must(cnt>=3,e_MARKOV);
     must(X_chr==0,e_EXTRA_TEXT);
-    return (syntax_error.softerrstr|| syntax_error.harderrstr) ? 1 : 0;
+    return (syntax_error.softerrstr|| syntax_error.harderrstr) ? PARSE_ERR : PARSE_OK;
 }
 int parse_constraint(const char *str, int keep)
 {int v1,v2;
@@ -1267,7 +1268,7 @@ int parse_constraint(const char *str, int keep)
     if(entropy_expr.n==0){
         harderr(entropy_expr.type==ent_eq? e_SIMPLIFIES_EQ : e_SIMPLIFIES_GE);
     }
-    return (syntax_error.softerrstr|| syntax_error.harderrstr) ? 1 : 0;
+    return (syntax_error.softerrstr|| syntax_error.harderrstr) ? PARSE_ERR : PARSE_OK;
 }
 
 /***********************************************************************
@@ -1323,12 +1324,12 @@ int parse_delete_macro(const char *str)
 
 int parse_macro_definition(const char *str)
 {int done,v,var,defpos; struct macro_head_t head;
-    if(parse_macro_head(str,&head)) return 1; /* error in the head */
+    if(parse_macro_head(str,&head)) return PARSE_ERR; /* error in the head */
     v=find_macro(head,0);  // should not be defined
     must(v<0,v<4?e_MDEF_NOSTD:e_MDEF_DEFINED);
                            // we must have space
     if(macro_total >= max_macros-1) softerr(e_TOO_MANY_MACRO);
-    if(syntax_error.softerrstr|| syntax_error.harderrstr) return 1;
+    if(syntax_error.softerrstr|| syntax_error.harderrstr) return PARSE_ERR;
     clear_entexpr();       // clear the result space
     no_new_id(NULL);       // add new variables
     id_table_idx=0;        // don't keep old identifiers
@@ -1346,7 +1347,7 @@ int parse_macro_definition(const char *str)
     }
     must(R('='),e_MDEF_NOEQ);
     // if there was an error, don't proceed
-    if (syntax_error.softerrstr|| syntax_error.harderrstr) return 1;
+    if (syntax_error.softerrstr|| syntax_error.harderrstr) return PARSE_ERR;
     defpos=X_pos; parse_entropyexpr(str+defpos,1,expr_macro);
     must(entropy_expr.n>0,e_MDEF_SIMP0);
     v=first_variable_not_used();
@@ -1357,11 +1358,11 @@ int parse_macro_definition(const char *str)
            is_variable(&var); v--; while(v>=0 && (R('|')||R(X_sep)) && 0);
         }
         harderr(e_MDEF_UNUSED); /* don't adjust error position */
-        return 1;
+        return PARSE_ERR;
     }
     add_new_macro(head);
     adjust_error_position(defpos); /* if there was an error */
-    return(syntax_error.softerrstr|| syntax_error.harderrstr)?1 : 0;
+    return(syntax_error.softerrstr|| syntax_error.harderrstr)? PARSE_ERR : PARSE_OK;
 }
 
 

@@ -14,7 +14,7 @@
 /* Version and copyright */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	4
-#define VERSION_SUB	2
+#define VERSION_SUB	3
 #define VERSION_STRING	mkstringof(VERSION_MAJOR.VERSION_MINOR.VERSION_SUB)
 
 #define COPYRIGHT	\
@@ -1728,11 +1728,25 @@ static int check_offline_expression(const char *src, int quiet)
 *
 *    checks the first expression with the other arguments as
 *    constraints. Print out the messages if quiet is not set, and
-*    determines the program's exit value.
+*    determines the program's exit value. argno is positive.
 */
 static int check_offline(int argc, char *argv[], int quiet)
-{int i,j,keep,parse;
-    keep=0;
+{int i,j,keep,parse; char *src;
+    src=argv[0]; while(*src && *src!='=') src++; 
+    if(*src=='='){
+       src++;
+       while(*src==' '|| *src=='\t') src++;
+       if(*src=='='){
+          cmdarg_position=0;
+          if(parse_diff(argv[0])!=PARSE_OK){
+             if(!quiet) error_message(argv[0]);
+             return EXIT_SYNTAX;
+          }
+          print_expression(); printf("\n");
+          return EXIT_TRUE;
+       }
+    }
+    keep=0; cmdarg_position=0;
     for(i=1;i<argc;i++){
         for(j=0;j<constraint_no;j++) if(strcmp(argv[i],constraint_table[j])==0){
             if(!quiet) printf("ERROR: constraint #%d is the same as constraint %d:\n%s\n",
@@ -1798,17 +1812,20 @@ static void extract_randomness(const char *from)
 /***********************************************************************
 * Execute minitiprc
 *
-* int execute_minitiprc(void)
-*    search for .minitiprc and executes the commands in it.
-*    Return value: non-zero when there was an error
+* int execute_minitiprc(int complain)
+*    search for .minitiprc and execute the commands in it.
+*    Return value: 0: OK, 1: error during execution,
+*     2: complain is set and file not found
 */
 static char *RC_FILE=DEFAULT_RC_FILE;
 
-static int execute_minitiprc(void)
+
+static int execute_minitiprc(int complain)
 {FILE *rcfile; char buff[MAX_PATH_LENGTH+20];
     if(RC_FILE==NULL) return 0;
     rcfile=fopen(RC_FILE,"r");
     if(!rcfile){
+       if(complain) return 2; // file not found
        char *home=getenv("HOME");
        if(home){
            strncpy(buff,home,MAX_PATH_LENGTH);buff[MAX_PATH_LENGTH]=0;
@@ -1818,7 +1835,7 @@ static int execute_minitiprc(void)
            rcfile=fopen(buff,"r");
        }
     }
-    return execute_batch_file(rcfile);
+    return execute_batch_file(rcfile)? 1 : 0;
 }
 
 /***********************************************************************
@@ -1865,7 +1882,7 @@ inline static void short_help(void){printf(
 }
 
 int main(int argc, char *argv[])
-{char *line; int i; int quietflag, endargs, styleset;
+{char *line; int i; int quietflag, endargs, styleset, rcfile;
  char *histfile; syntax_style_t mi_style; char mi_sepchar;
 
     /* some default values */
@@ -1881,7 +1898,7 @@ int main(int argc, char *argv[])
     set_syntax_style(minitip_INITIAL_STYLE,minitip_INITIAL_SEPCHAR,1);
 
     /* argument handling */
-    quietflag=0; endargs=0; styleset=0; histfile=NULL;
+    quietflag=0; endargs=0; styleset=0; rcfile=0; histfile=NULL;
     for(i=1; i<argc && endargs==0 && argv[i][0]=='-';i++){
         switch(argv[i][1]){
       case 'h': short_help(); return EXIT_INFO;
@@ -1927,7 +1944,7 @@ int main(int argc, char *argv[])
                    printf("File name after flag '-c' is too long\n");
                    return EXIT_ERROR;
                 }
-                RC_FILE=line;
+                RC_FILE=line; rcfile=1;
                 break;
       case 'm': line=&(argv[i][2]);
                 if(*line==0){ i++; if(i<argc){ line=argv[i]; } }
@@ -1945,7 +1962,7 @@ int main(int argc, char *argv[])
                 break;
       case 'q': quietflag=1; break;
       case 'e': endargs=1; break;
-      default:  printf("unknown flag '%s', use '-h' for help\n",argv[i]); return EXIT_ERROR;
+      default:  printf("Unknown flag '%s', use '-h' for help\n",argv[i]); return EXIT_ERROR;
         }
     }
     /* reset default style */
@@ -1954,9 +1971,12 @@ int main(int argc, char *argv[])
     set_syntax_style(minitip_INITIAL_STYLE,minitip_INITIAL_SEPCHAR,1);
     in_minitiprc=1;
     /* execute the rc file */
-    if(execute_minitiprc()){
-       printf("Error in rc file %s\n",RC_FILE);
-       return EXIT_ERROR;
+    switch(execute_minitiprc(rcfile)){
+       case 1: printf("Error in rc file '%s'\n",RC_FILE);
+               return EXIT_ERROR;
+       case 2: printf("File '%s' after -c flag not found\n",RC_FILE);
+               return EXIT_ERROR;
+       default: break;
     }
     in_minitiprc=0;
     if(styleset){ // command line override

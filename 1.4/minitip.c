@@ -14,7 +14,7 @@
 /* Version and copyright */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	4
-#define VERSION_SUB	3
+#define VERSION_SUB	4
 #define VERSION_STRING	mkstringof(VERSION_MAJOR.VERSION_MINOR.VERSION_SUB)
 
 #define COPYRIGHT	\
@@ -291,7 +291,7 @@ static COMMAND commands[] = {
 {"add",	   com_add,   0, pm_help,   NULL,	"add new constraint" },
 {"list",   com_list,  0, pm_list,   NULL,	"list all or specified constraints: 3,5-7"},
 {"del",	   com_del,   0, pm_help,   NULL,	"delete numbered constraint"},
-{"zap",	   com_diff,  0, pm_help,   NULL,	"print missing entropy terms on RHS"},
+{"unroll", com_diff,  0, pm_help,   NULL,	"print missing entropy terms on RHS"},
 {"macro",  com_macro, 0, pm_macro,  NULL,	"add, list, delete macros"},
 {"run",    com_batch, 1, NULL,      NULL,	"execute commands from a file"},
 {"style",  com_style, 0, pm_style,  NULL,	"show / change formula style"},
@@ -348,7 +348,8 @@ static char *cmd_name(const char*txt, int state)
 static char *pm_syntax(const char *txt, int state)
 {static int list_index=0; const char *name;
  static const char *syntaxargs[]={
-  "style","variable","entropy","expression","relation","constraint","macro","zap",NULL };
+  "style","variable","entropy","expression","measure","relation",
+  "constraint","macro","unroll",NULL };
     if(!state){ list_index=0; }
     while((name=syntaxargs[list_index])!=NULL){
         list_index++;
@@ -645,7 +646,7 @@ static int com_quit(const char *arg, const char *line)
 
 /** SYNTAX  -- give help on syntax of different constructs **/
 static int com_syntax(const char *argv, const char *line)
-/** style / variable / entropy / expression / relation / constraint / macro / zap **/
+/** style / variable / entropy / expression / relation / constraint / macro / unroll / measure **/
 {
 /** STYLE **/
     if(strncasecmp(argv,"style",3)==0){ // on style
@@ -702,17 +703,17 @@ static int com_syntax(const char *argv, const char *line)
 // simple style
 "In simple (lazy) style with separating character %1$c these\n"
 "terms can be abbreviated to minimal:\n"
-"a) the joint entropy of the list of random variables a,c,r,s is entered as\n"
+" a) the joint entropy of the list of random variables a,c,r,s is entered as\n"
 "     H(acrs)     or  acrs\n"
-"b) the conditional entropy H(a,b|r,s) can be written as\n"
+" b) the conditional entropy H(a,b|r,s) can be written as\n"
 "     H(ab|rs)    or  (ab|rs)\n"
-"c) the mutual information I(a,b;r,s) is entered as\n"
+" c) the mutual information I(a,b;r,s) is entered as\n"
 "     I(ab%1$crs)    or  (ab%1$crs)\n"
-"d) the conditional mutual information I(a,b;r,s|c,d) is\n"
+" d) the conditional mutual information I(a,b;r,s|c,d) is\n"
 "     I(ab%1$crs|cd) or  (ab%1$crs|cd)\n"
-"e) the Ingleton expression  -(a%1$cb)+(a%1$cb|c)+(a%1$cb|d)+(c%1$cd) is\n"
+" e) the Ingleton expression  -(a%1$cb)+(a%1$cb|c)+(a%1$cb|d)+(c%1$cd) is\n"
 "     [a%1$cb%1$cc%1$cd]\n"
-"f) an invocation of the three argument =>macro X(%1$c|) is entered as\n"
+" f) an invocation of the three argument =>macro X(%1$c|) is entered as\n"
 "     X(ab%1$cc|a)\n",minitip_sepchar);
         else printf(
 // full style
@@ -724,6 +725,28 @@ static int com_syntax(const char *argv, const char *line)
 " e) [A;B;C;D]    shorthand for the Ingleton expression\n"
 "                     -I(A;B)+I(A;B|C)+I(A;B|D)+I(C;D)\n"
 " f) X(A,B;C|A)   invocation of the three argument =>macro X(;|).\n");
+        return 0;
+    }
+/** MEASURES **/
+    if(strncasecmp(argv,"measure",4)==0){ // measure
+        printf(
+"Next to the usual Shannon entropy measures, extended (unconditional\n"
+"and conditional) information measures are rocognized as well:\n");
+        if(minitip_style==syntax_short) printf(
+// simple style
+"    (a%1$cb%1$cc)      for (a%1$cb)-(a%1$cb|c)\n"
+"    (a%1$cb%1$cc|x)    for (a%1$cb|x)-(a%1$cb|cx)\n"
+"    (a%1$cb%1$cc%1$cd)    for (a%1$cb%1$cc)-(a%1$cb%1$cc|d)\n"
+"    (a%1$cb%1$cc%1$cd|x)  for (a%1$cb%1$cc|x)-(a%1$cb%1$cc|dx), etc,\n",minitip_sepchar);
+        else printf(
+// full style
+"    I(A;B;C)     for I(A;B)-I(A;B|C)\n"
+"    I(A;B;C|X)   for I(A;B|X)-I(A;B|C,X)\n"
+"    I(A;B;C;D)   for I(A;B;C)-I(A;B;C|D)\n"
+"    I(A;B;C;D|X) for I(A;B;C|X)-I(A;B;C|D,X), etc,\n");
+        printf(
+"up to depth " mkstringof(minitip_MAX_MEASURE_DEPTH) ".\n"
+"To disable this feature enter 'set measure=false'.\n");
         return 0;
     }
 /** MACRO **/
@@ -808,7 +831,8 @@ static int com_syntax(const char *argv, const char *line)
 "     =, <= or >=0\n"
 "*  functional dependency: the first =>variable list is determined by the\n"
 "   second one:\n"
-"         varlist1 : varlist2\n"
+"         varlist1 :  varlist2\n"
+"     or  varlist1 << varlist2\n"
 "*  independence: the =>variable lists are totally independent:\n"
 "         varlist1 .  varlist2 .  varlist3 .  ...\n"
 "     or  varlist1 || varlist2 || varlist3 || ...\n"
@@ -819,24 +843,24 @@ static int com_syntax(const char *argv, const char *line)
 "'del' to remove some or all of the constraints.\n");
         return 0;
     }
-/** ZAP **/
-    if(strncmp(argv,"zap",3)==0){ // zap
+/** UNROLL **/
+    if(strncmp(argv,"unroll",3)==0){ // unroll
         printf(
 "Calculate the missing terms on the right hand side of two =>expressions\n"
 "connected by '=='. Leave the right hand side empty to print the formula as\n"
 "a composition of entropies. Example:\n");
         if(minitip_style==syntax_short) printf(
 // simple style
-"        zap (a%1$cb|c)+(b%1$cc|a)+(c%1$ca|b) ==\n"
+"        unroll (a%1$cb|c)+(b%1$cc|a)+(c%1$ca|b) ==\n"
 "Result:\n"
 "         ==> -a-b-c+2ab+2ac+2bc-3abc\n",minitip_sepchar);
         else printf(
 // full style
-"        zap I(A;B|C)+I(B;C|A)+I(C;A|B) =='\n"
+"        unroll I(A;B|C)+I(B;C|A)+I(C;A|B) =='\n"
 "Result:\n"
 "         ==> -H(A)-H(B)-H(C)+2H(A,B)+2H(A,C)+2H(B,C)-3H(A,B,C)\n");
         printf(
-"Similarly to the 'check' and 'test' keywords, 'zap' can be omitted if\n"
+"Similarly to the 'check' and 'test' keywords, 'unroll' can be omitted if\n"
 "the first character of the expression is not a letter.\n");
         return 0;
     }
@@ -846,11 +870,12 @@ static int com_syntax(const char *argv, const char *line)
 "  style      -- choose between \"simple\" and \"full\" style\n"
 "  variables  -- random variables and sequences of random variables\n"
 "  entropy    -- entropy term syntax and shorthand\n"
+"  measure    -- extended entropy measures\n"
 "  macro      -- macros, what they are\n"
 "  expression -- linear combination of entropy terms and macros\n"
 "  relation   -- compare two expressions by =, <= or >=\n"
 "  constraint -- syntax of constraints\n"
-"  zap        -- calculate the missing terms on the right hand side\n");
+"  unroll     -- calculate the missing terms on the right hand side\n");
     return 0; /* OK */
 }
 /** ADD  -- add a constraint **/
@@ -859,7 +884,7 @@ static int com_add(const char* line,const char *orig)
     if(*line==0 || *line=='?' || strncmp(line,"help",4)==0){ // empty line, help
         if(!orig) printf(" Add a new constraint, which can be\n"
         " *  an equality or inequality comparing two entropy expressions; or\n"
-        " *  functional dependency; total independence; or Markov chain.\n"
+        " *  functional dependency; total independence; Markov chain.\n"
         " Enter 'syntax constraint' for more help.\n" );
         return 0;
     }
@@ -1090,8 +1115,10 @@ static int com_style(const char *argv, const char *line)
 /*---------------------------------------------------------------------
 *  int standard_macros
 *      user-defined macros starts from this index
+*  int standard_measures
+*      additional measures are defined from here
 *  void setup_standard_macros()
-*      set up the standard macros H() and I() and D() as Delta
+*      set up the standard macros H() and I() and other measures
 *  int com_macro_add()
 *      add a new macro
 *  int com_macro_list()
@@ -1099,14 +1126,41 @@ static int com_style(const char *argv, const char *line)
 *  int com_macro_del()
 *      delete the macro with the given prototype
 */
-static int standard_macros=0;
+static int standard_macros=0,standard_measures=0;
+
+static inline void addchar(char *str,char c){
+    while(*str){str++;} str[0]=c; str[1]='\0';
+}
+static inline void addstr(char *str,const char *t){
+    while(*str){str++;} while(*t){*str=*t; str++;t++;}
+    *str='\0';
+}
+static inline void addseq(char *str,int d)
+{int i;
+    for(i=3;i<d;i++){addchar(str,',');addchar(str,-1+'a'+i);}
+}
 static void setup_standard_macros(void)
-{   set_syntax_style(syntax_short,',',1);
+{char buff[minitip_MAX_EXPR_LENGTH]; int d;
+    set_syntax_style(syntax_short,',',1);
     if(parse_macro_definition("H(a)=a")!=PARSE_OK) error_message(NULL);
     if(parse_macro_definition("H(a|b)=ab-b")!=PARSE_OK) error_message(NULL);
     if(parse_macro_definition("I(a,b)=a+b-ab")!=PARSE_OK) error_message(NULL);
     if(parse_macro_definition("I(a,b|c)=ac+bc-c-abc")!=PARSE_OK) error_message(NULL);
-    standard_macros = macro_total; 
+    // additional measures
+    // I(a,b,x)  =I(a,b)-I(a,b|x)
+    // I(a,b,x|y)=I(a,b|y)- I(a,b|xy), etc.
+    standard_measures = macro_total;
+    for(d=3;d<minitip_MAX_MEASURE_DEPTH;d++){
+       buff[0]=0; addstr(buff,"I(a,b"); addseq(buff,d);
+       addstr(buff,",x)=I(a,b"); addseq(buff,d);
+       addstr(buff,")-I(a,b"); addseq(buff,d);addstr(buff,"|x)");
+       if(parse_macro_definition(buff)!=PARSE_OK) error_message(NULL);
+       buff[0]=0; addstr(buff,"I(a,b"); addseq(buff,d);
+       addstr(buff,",x|y)=I(a,b"); addseq(buff,d);
+       addstr(buff,"|y)-I(a,b"); addseq(buff,d);addstr(buff,"|xy)");
+       if(parse_macro_definition(buff)!=PARSE_OK) error_message(NULL);
+    }
+    standard_macros = macro_total;
 //  if(parse_macro_definition("D(a,b,c)=(a,b|c)+(b,c|a)+(c,a|b)")) error_message(NULL);
 }
 
@@ -1264,6 +1318,7 @@ static PARAMETERS parameters[] = {
 {"constrlimit", NULL,	50,	10,	100000,		"maximal number of constraints"},
 {"macrolimit",	NULL,	50,	10,	100000,		"maximal number of macros"},
 {"run",		"strict/loose",	1,1,2,			"strict/loose - how to handle errors in run file"},
+{"measure",	"yes/no",	1,1,2,			"yes/no - allow extended information measures"},
 {"comment",	"yes/no",	2,1,2,			"yes/no - show comments from run file"},
 {"abbrev",	"yes/no",	2,1,2,			"yes/no - allow abbreviated commands"},
 {"save",	"yes/no/ask",	3,1,3,			"yes/no/ask - save command history at exit"},
@@ -1402,6 +1457,8 @@ static int com_set(const char *arg, const char *line)
                 if(strcmp(show_choice(P->type,n),arg)==0){
                     if(strcmp(P->name,"simplevar")==0)
                       set_syntax_style(minitip_style,minitip_sepchar,n);
+                    if(strcmp(P->name,"measure")==0)
+                      set_syntax_measure(n,standard_measures,standard_macros);
                     P->value=n; return 0;
                 }
            }
@@ -1412,7 +1469,7 @@ static int com_set(const char *arg, const char *line)
     if(*arg=='?' || strncmp(arg,"help",4)==0){ // help
        if(!line) printf(
          " List / set runtime parameters. Enter 'set' without arguments to list\n"
-         " parameters; enter 'set parameter=value' to change the value of a\n"
+         " parameters; enter 'set <parameter>=<value>' to change the value of a\n"
          " single parameter.\n");
        return 0;
     }
@@ -1637,7 +1694,7 @@ static int com_diff(const char *line, const char *orig)
     if(!*line || *line=='?' || strcmp(line,"help")==0){
         if(!orig)
             printf(" Show the difference of two formulas separated by '=='\n"
-                   " Enter 'syntax zap' for more help.\n");
+                   " Enter 'syntax unroll' for more help.\n");
         return 0;
     }
     if(parse_diff(line)!=PARSE_OK){ /* some error */
@@ -1883,7 +1940,8 @@ inline static void short_help(void){printf(
 
 int main(int argc, char *argv[])
 {char *line; int i; int quietflag, endargs, styleset, rcfile;
- char *histfile; syntax_style_t mi_style; char mi_sepchar;
+ char *histfile; syntax_style_t mi_style=minitip_INITIAL_STYLE; 
+ char mi_sepchar=minitip_INITIAL_SEPCHAR;
 
     /* some default values */
     if(HISTORY_FILE==NULL) HISTORY_FILE=strdup(DEFAULT_HISTORY_FILE);
@@ -1896,7 +1954,7 @@ int main(int argc, char *argv[])
     minitip_style=minitip_INITIAL_STYLE;
     minitip_sepchar=minitip_INITIAL_SEPCHAR;
     set_syntax_style(minitip_INITIAL_STYLE,minitip_INITIAL_SEPCHAR,1);
-
+    set_syntax_measure(get_param("measure"),standard_measures,standard_macros);
     /* argument handling */
     quietflag=0; endargs=0; styleset=0; rcfile=0; histfile=NULL;
     for(i=1; i<argc && endargs==0 && argv[i][0]=='-';i++){

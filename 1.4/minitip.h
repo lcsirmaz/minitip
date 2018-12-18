@@ -43,7 +43,9 @@
 /* maximal length of a full entropy identifies */
 #define minitip_MAX_ID_LENGTH	25
 /* maximal length of a fully expanded entropy expression */
-#define minitip_MAX_EXPR_LENGTH	500
+#define minitip_MAX_EXPR_LENGTH	550
+/* maximal depth of information measure, 2^depth < MAX_EXPR_LENGTH */
+#define minitip_MAX_MEASURE_DEPTH 6
 /* maximal length of a line in a batch file */
 #define minitip_MAX_LINE_LENGTH	1024
 /* maximal depth of batch file embedding */

@@ -43,6 +43,10 @@
 *     set the style to the given one, the character as
 *     separator between variables sequences, and allow
 *     extended variable syntax in simple style
+*
+* void set_syntax_measure(how,idx_from,idx_to)
+*     set whether extended measures can be used. Indices
+*     are for the macro invocations.
 */
 
 typedef enum {
@@ -51,6 +55,7 @@ typedef enum {
 } syntax_style_t;
 
 void set_syntax_style(syntax_style_t style,char sepchar,int extvar);
+void set_syntax_measure(int msr,int mfrom,int mto);
 
 /***********************************************************************
 * Syntax error

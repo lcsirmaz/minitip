@@ -164,21 +164,27 @@ static char buf1[80],buf2[10]; char *txt;
 *   style_t X_style  actual style: SIMPLE or ORIGINAL
 *   char    X_sep    the separator character, one of .:;
 *   int     X_xvar   allow trailing digits in simple style
+*   int     X_msr    additional measures: 0=yes, 1=no
 */
 
 static syntax_style_t X_style; static char X_sep;
-static int X_xvar;
+static int X_xvar; static int X_msr;
 #define SIMPLE		syntax_short
 #define ORIGINAL	syntax_full
-void set_syntax_style(syntax_style_t style, char sep, int ext_var){ 
-    X_style=style; X_sep=sep; X_xvar=ext_var; }
 
+void set_syntax_style(syntax_style_t style, char sep, int ext_var){
+    X_style=style; X_sep=sep; X_xvar=ext_var; }
 /***********************************************************************
 * Macro expansion and storage routines
 *   expanded macro texts are stored in the macro_text[] array.
 *   A new definition fills out new_macro, which then can be copied
 *   into the main macro storage part.
 *
+* int standard_macros
+*   number of standard macros (do not delete or overwrite)
+*
+* void set_syntax_measure(how,idx_from,idx_to)
+*   set whether extended measures can be used
 * int resize_macro_table(int newsize)
 *   resize the table to the maximum of newsize and macro_total. Return
 *   the new size.
@@ -192,6 +198,7 @@ struct macro_head_t {
     int argno;		/* number of arguments */
     int septype;	/* separator type, bit i for args i and i+1 */
     char name;		/* macro name, 'A'--'Z' */
+    unsigned char hidden; /* if the macro is inivisible */
 };
 
 struct macro_text_t {
@@ -200,9 +207,16 @@ struct macro_text_t {
 };
 
 static int max_macros=0;	/* size of macro table */
+static int standard_macros=0;	/* number of standard macros */
 int macro_total=0; 		/* total number of macros */
 
 static struct macro_text_t *macro_text=NULL; // [minitip_MAX_MACRONO];
+
+void set_syntax_measure(int msr, int mfrom, int muntil)
+{   X_msr=msr==1 ? 0 : 1;
+    standard_macros=muntil;
+    for(;mfrom<muntil;mfrom++)macro_text[mfrom].head.hidden=X_msr;
+}
 
 int resize_macro_table(int newsize)
 {struct macro_text_t *newtable;
@@ -251,23 +265,34 @@ void delete_macro_with_idx(int idx)
 *    partial      - 0 find exact match
 *                 - 1 find partial match with last separator ;
 *                 - 2 find partial match with last separator |
+*                 - -1 find exact match allowing hidden macros
 *
 *    return value: >=0 the macro's index; -1: no macro was found
 */
 static int find_macro(struct macro_head_t head, int partial)
 {int idx;
-    if(partial){
+    if(partial>0){
         int mask=(1<<head.argno)-1;
         int type=head.septype; if(partial==2) type |= 1<<(head.argno-1);
         for(idx=0;idx<macro_total;idx++){
             if(macro_text[idx].head.name == head.name &&
+               macro_text[idx].head.hidden == 0 &&
                macro_text[idx].head.argno > head.argno &&
                (macro_text[idx].head.septype&mask)==type ) return idx;
         }
         return -1;
     } /* ask for exact match */
+    if(partial<0){ /* exact match allowing hidden macros */
+        for(idx=0;idx<macro_total;idx++){
+           if(macro_text[idx].head.name==head.name &&
+              macro_text[idx].head.argno == head.argno &&
+              macro_text[idx].head.septype == head.septype) return idx;
+        }
+        return -1;
+    }
     for(idx=0;idx<macro_total;idx++){
         if(macro_text[idx].head.name==head.name &&
+           macro_text[idx].head.hidden == 0 &&
            macro_text[idx].head.argno == head.argno &&
            macro_text[idx].head.septype == head.septype) return idx;
     }
@@ -532,7 +557,7 @@ static void convert_item_to_expr(void)
       ee_n++;
       break;
   default:
-       must(0,e_INTERNAL);
+      must(0,e_INTERNAL);
     }
 }
 
@@ -927,6 +952,7 @@ static int is_macro_name(char *v){
 * Parsing entropy items
 *    parse the next entropy item and store it in the ITEM structure
 *  int is_Ingleton            [a,b,c,d]
+*  void extended_measure      (a,b,c|x) and the others
 *  int is_par_expression      (a,b) (a|b) (a,b|c)
 *  int is_simple_expression   a a,b a|b a,b|c
 *  int is_macro_invocation    X(list1,list2|listn)
@@ -935,6 +961,23 @@ static int is_macro_name(char *v){
 *    arguments are either zero or a character; expect one of them
 *    issue meaningful error message
 */
+/* expect one of the three chars/zero, issue the correct error message */
+static int expect_oneof(char c1, char c2, char c3)
+{int n; static char buff[80];
+    if(c1 && R(c1)) return 1;
+    if(c2 && R(c2)) return 2;
+    if(c3 && R(c3)) return 3;
+    if(syntax_error.harderrstr) return 0;
+    n=0; if(c1)n++; if(c2)n++; if(c3)n++;
+    if(n==1){ sprintf(buff,"symbol %c is expected here",c1|c2|c3); }
+    /**     c1==0:  c2   c3
+            c2==0   c1   c3
+            c3==0   c1   c2  */
+    else if(n==2){ sprintf(buff,"either '%c' or '%c' is expected here",c1==0?c2:c1,c3==0?c2:c3); }
+    else { sprintf(buff,"one of %c, %c or %c is expected here",c1,c2,c3); }
+    must(0,buff);
+    return 0;
+}
 static int is_Ingleton(void)
 {   if(R('[')){
         item.item_type=Ing;
@@ -950,6 +993,27 @@ static int is_Ingleton(void)
     }
     return 0;
 }
+static void extended_measure(void)
+{struct macro_head_t head; int done;
+    head.name='I'; head.argno=2; head.septype=0; head.hidden=0;
+    item.vars[0]=item.var1; item.vars[1]=item.var2;
+    for(done=0;!done;){
+       must(is_varlist(&item.vars[head.argno]),e_VARLIST);
+       if(head.argno<minitip_MAX_ID_NO) head.argno++;
+       switch(expect_oneof(
+          find_macro(head,0) >=0 ? ')':0,
+          head.septype==0 && find_macro(head,1) >=0 ? X_sep : 0,
+          head.septype==0 && find_macro(head,2) >=0 ? '|' : 0)){
+          case 3: head.septype |= 1<<(head.argno-1); break;
+          case 2: break; /* sep */
+          case 1: done=1; break; /* ) */
+          default: done=1; break; /* error */
+       }
+    }
+    item.var1=find_macro(head,0);
+    must(item.var1>0,e_NOMACROARG);
+    item.item_type=Macro;
+}
 static int is_par_expression(void)
 {   if(R('(')){ /* (a,b)  (a|b)  (a,b|c) */
         must(is_varlist(&item.var1),e_CONDEXPR);
@@ -964,15 +1028,15 @@ static int is_par_expression(void)
             if(R('|')){
                 item.item_type=I3;
                 must(is_varlist(&item.var3),e_VARLIST);
+                must(R(')'),e_CLOSING);
+            } else if(X_msr==0 && R(X_sep)){
+                extended_measure();
+            } else {
+                must(R(')'),e_CLOSING);
             }
-            must(R(')'),e_CLOSING);
         }
         return 1;
     }
-//    if(is_varlist(&item.var1)){
-//        item.item_type=H1;
-//        return 1;
-//    }
     return 0;
 }
 static int is_simple_expression(void)
@@ -993,28 +1057,11 @@ static int is_simple_expression(void)
     }
     return 0;
 }
-/* expect one of the three chars/zero, issue the correct error message */
-static int expect_oneof(char c1, char c2, char c3)
-{int n; static char buff[80];
-    if(c1 && R(c1)) return 1;
-    if(c2 && R(c2)) return 2;
-    if(c3 && R(c3)) return 3;
-    if(syntax_error.harderrstr) return 0;
-    n=0; if(c1)n++; if(c2)n++; if(c3)n++;
-    if(n==1){ sprintf(buff,"symbol %c is expected here",c1|c2|c3); }
-    /**     c1==0:  c2   c3
-            c2==0   c1   c3
-            c3==0   c1   c2  */
-    else if(n==2){ sprintf(buff,"either '%c' or '%c' is expected here",c1==0?c2:c1,c3==0?c2:c3); }
-    else { sprintf(buff,"one of %c, %c or %c is expected here",c1,c2,c3); }
-    must(0,buff);
-    return 0;
-}
 static int is_macro_invocation(void)
 {int oldpos; struct macro_head_t head; int macrono; int done;
     oldpos=X_pos;
     if(is_macro_name(&head.name) && R('(')){
-        head.argno=0; head.septype=0;
+        head.argno=0; head.septype=0; head.hidden=0;
         must(find_macro(head,1)>=0,e_NOMACRO);
         for(done=0; !done; ){
             must(is_varlist(&item.vars[head.argno]),head.argno==0 ? e_CONDEXPR : e_VARLIST);
@@ -1245,6 +1292,7 @@ static int is_Markov(char sep, int v1,int v2)
     must(X_chr==0,e_EXTRA_TEXT);
     return (syntax_error.softerrstr|| syntax_error.harderrstr) ? PARSE_ERR : PARSE_OK;
 }
+
 int parse_constraint(const char *str, int keep)
 {int v1,v2;
     clear_entexpr();   /* clear the result space */
@@ -1254,6 +1302,10 @@ int parse_constraint(const char *str, int keep)
     if(strchr(str,'=')==NULL && is_varlist(&v1)){ /* check for special constructs */
         if(R(':')){
               if(is_varlist(&v2)) return is_funcdep(v1,v2);
+        } else if(R('<')){
+              if(R('<') && is_varlist(&v2)) {
+                  return is_funcdep(v1,v2);
+              }
         } else if(R('.')){
               if(is_varlist(&v2)) return is_indep('.',v1,v2);
         } else if(R('|')){
@@ -1307,7 +1359,7 @@ static int parse_macro_head(const char *str, struct macro_head_t *head)
         if(argno<minitip_MAX_ID_NO) argno++;
         else softerr(e_TOO_MANY_ARGS);
     }
-    head->name=name; head->argno=argno; head->septype=sepmask;
+    head->name=name; head->argno=argno; head->septype=sepmask; head->hidden=0;
     return (syntax_error.softerrstr|| syntax_error.harderrstr) ? 1 : 0;
 }
 
@@ -1325,8 +1377,8 @@ int parse_delete_macro(const char *str)
 int parse_macro_definition(const char *str)
 {int done,v,var,defpos; struct macro_head_t head;
     if(parse_macro_head(str,&head)) return PARSE_ERR; /* error in the head */
-    v=find_macro(head,0);  // should not be defined
-    must(v<0,v<4?e_MDEF_NOSTD:e_MDEF_DEFINED);
+    v=find_macro(head,-1);  // should not be defined
+    must(v<0,v<standard_macros?e_MDEF_NOSTD:e_MDEF_DEFINED);
                            // we must have space
     if(macro_total >= max_macros-1) softerr(e_TOO_MANY_MACRO);
     if(syntax_error.softerrstr|| syntax_error.harderrstr) return PARSE_ERR;
@@ -1336,7 +1388,7 @@ int parse_macro_definition(const char *str)
     init_parse(str);
     head.name='\0';
     must(is_macro_name(&head.name) && R('('),e_MDEF_NAME);
-    head.argno=0; head.septype=0;  // arguments, separator mask
+    head.argno=0; head.septype=0; head.hidden=0;  // arguments, separator mask
     for(done=0;!done;){
         must(is_variable(&var),e_MDEF_NOPAR);
         must(var==1<<head.argno,e_MDEF_SAMEPAR);

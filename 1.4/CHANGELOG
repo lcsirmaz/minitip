@@ -1,3 +1,15 @@
+1.4.4
+allow additional information measures entered as
+  (a,b,c,d), or just (a,b,c,d|x)
+(simple style) or
+  I(A;B;C;D)  or I(A;B;C;D|X)
+(full style) to be defined as
+  -\sum { (-1)^|A| H(AX): A is a subset of abcd }
+new parameter:
+  measure = yes/no (allow the above information measure shorthand)
+add "a << b" as a new form of functional dependency
+change the term "zap" to "unroll"
+
 1.4.3
 complain if '-c <file>' used but the <file> is not found
 allow == as offline argument

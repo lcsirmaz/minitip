@@ -314,7 +314,7 @@ char *call_lp(int next_expr(int), int iterlimit, int timelimit)
     constraints=0;
     for(i=0;next_expr(i)==0;i++){ /* go over all constraints */
         constraints++;
-         // Markov constraints give several cols
+         // Markov constraints give n-3 cols
         if(entropy_expr.type==ent_Markov){
             constraints+=entropy_expr.n-3;
         }

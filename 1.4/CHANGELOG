@@ -1,3 +1,7 @@
+1.4.5
+allow curly braces {} to group entropy terms; change some
+documentation.
+
 1.4.4
 allow additional information measures entered as
   (a,b,c,d), or just (a,b,c,d|x)

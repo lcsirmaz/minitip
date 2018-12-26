@@ -333,8 +333,8 @@ char *call_lp(int next_expr(int), int iterlimit, int timelimit)
         if(colperm){ free(colperm); colperm=NULL; }
         return "the problem is too large, not enough memory";
     }
-    for(i=0;i<=rows;i++) rowperm[i]=i;    perm_array(rows+1,rowperm);
-    for(i=0;i<=cols;i++) colperm[i]= i-1; perm_array(cols+1,colperm);
+    for(i=0;i<=rows;i++){rowperm[i]=i;}   perm_array(rows+1,rowperm);
+    for(i=0;i<=cols;i++){colperm[i]=i-1;} perm_array(cols+1,colperm);
     /* the expression to be checked, this will be the goal */
     if(constraints) next_expr(-1);
     goal_type=entropy_expr.type; // ent_eq, ent_ge

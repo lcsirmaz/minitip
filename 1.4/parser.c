@@ -104,19 +104,18 @@ inline static void adjust_error_position(int d)
 #define e_CLOSING	"closing parenthesis ')' is expected here"
 #define e_COMMA_OR_BAR	"either a list separator or '|' is expected here"
 #define e_VARLIST	"variable list is expected here"
+#define e_GROUPEND	"a closing brace '}' is expected here"
 
 #define e_PLUSORMINUS	"either '+' or '-' is expected here"
-#define e_DOUBLE_REL	"only one relation is allowed in an expression"
 #define e_DIFF_USEEQ	"use '==' to separate the expressions"
 #define e_WRONGITEM	"unrecognized character"
 #define e_NOHOMOGEN	"constant before or after the relation sign must be zero"
 #define e_WRONGAST	"multiplication symbol '*' at a wrong place"
 #define e_EXTRA_TEXT	"extra characters at the end"
-#define e_EMPTY		"no expression is given"
 #define e_NORELATION	"there must be an '=', '<=' or '>=' somewhere"
 #define e_NORHS		"no expression after '=', '<=' or '>=' "
 #define e_DBLEEQ_REL	"use '=', '<=' or '>=' to separate the two sides"
-#define e_EXTRANUM	"no constants allowed"
+#define e_EXTRANUM	"entropy item is expected here"
 #define e_NOMACRO	"no macro with this name is defined"
 #define e_NOMACROARG	"no macro with this name and pattern is defined"
 #define e_ID_IN_MACRO	"only macro arguments can be used as variables"
@@ -479,40 +478,40 @@ inline static void ee_i3(int v1,int v2,int v3, double d){
 /***********************************************************************
 * Convert an item into a linear combination of entropies
 *
-*  int ee_negate
-*    if set, subtract, rather than add the entropy item to the
-*    accumulated result. It should be cleared initially, and
-*    is set when the relation symbol =, >=, or == is found.
+*  doublee e_multiplier
+*    multiply the the next term with this value. Initially it is set
+*    to 1, and to -1 when one of the relation symbols =, >=, == is
+*    found. Used for grouped items.
 *
 * void clear_entexpr(void)
 *    should be called at the start of parsing. Clears entropy_expr
-*    as well as the ee_negate flag.
+*    and sets the ee_multiplier to 1.0
 *
 *  void convert_item_to_expr(void)
 *    given the item stored in ITEM, add it to the entropy expression
 *    in entropy_expr. Constraints are handled separately
 */
-static int ee_negate;
+static double ee_multiplier;
 
 inline static void clear_entexpr(void)
-{ee_negate=0; ee_n=0;}
+{ee_multiplier=1.0; ee_n=0;}
 
 static void convert_item_to_expr(void)
 {double d; int j; struct entropy_expr_t *M;
     if(syntax_error.softerrstr || syntax_error.harderrstr) return;
-    d=item.multiplier; if(ee_negate) d=-d;
+    d=item.multiplier*ee_multiplier;
     switch(item.item_type){
   case zero:	/* skip, do nothing */
         break;
   case equal:	/* negate subsequent terms */
-       ee_negate=1; ee_type=ent_eq; break;
+       ee_multiplier=-1.0; ee_type=ent_eq; break;
   case less:	/* negate existing terms */
        for(j=0;j<ee_n;j++){ ee_item[j].coeff *= -1.0; }
        ee_type=ent_ge; break;
   case greater:	/* negate subsequent terms */
-       ee_negate=1; ee_type=ent_ge; break;
+       ee_multiplier=-1.0; ee_type=ent_ge; break;
   case diff:    /* difference of the two sides */
-       ee_negate=1; ee_type=ent_diff; break;
+       ee_multiplier=-1.0; ee_type=ent_diff; break;
   case H1:	/* entropy of a single variable */
        ee_add(item.var1,d); break;
   case H2:      /* (a|b) */
@@ -790,7 +789,7 @@ static inline int R(char c){
 }
 /* spy(c) -- check if the next symbol is c; but don't advance */
 // static inline int spy(char c){ return X_chr==c; }
-#define spy(c)	X_chr==(c)
+#define spy(c)	(X_chr==(c))
 /* is_digit(&d) -- if the next symbol is digit, store in d and advance */
 static inline int is_digit(int *v){
     if('0'<= X_chr && X_chr <='9'){ *v=X_chr-'0';  next_chr(); return 1;}
@@ -1088,99 +1087,101 @@ static int is_macro_invocation(void)
     return 0;
 }
 /***********************************************************************
-* void parse_entropyexpr(char *str, int keep, int etype)
+* int parse_entropygroup(int level)
+*   parse an entropy expression enclosed by { ... } Return values:
+*    0 : normal exit (or error)
+*    1 : no item
+*    2 : single zero constant
+*    3 : single non-zero constant (allow specific error message)
+*
+* void parse_entropyexpr(char *str, int keep, etype_t etype)
 *   parse the entropy expression passed in the argument str
 *   keep: if !=0, keep variables defined so far; otherwise clear
 *   etype: which format the expression should have (see below)
 */
-enum {
+typedef enum {
   expr_check, 	/* check or constraint */
   expr_diff, 	/* diff (zap) */
   expr_macro,	/* macro definition */
-};
+} etype_t;
 
 #define W_start 0	/* we are at the start */
-#define W_bexpr 1	/* after entropy expression before relation */
-#define W_rel   2	/* just after =, >=, <= */
-#define W_aexpr 3	/* after entropy expression after a relation */
-static void parse_entropyexpr(const char *str, int keep, int etype)
-{int where;             /* where we are */
- double coeff;          /* the coeff for the next item */
- int iscoeff; item_type_t relsym;
-    clear_entexpr();    /* clear the result space */
-    no_new_id(etype==expr_macro ? e_ID_IN_MACRO : NULL);
-    if(!keep) id_table_idx=0; /* don't keep identifiers */
-    where=W_start;      /* now we are in an initial position */
-    init_parse(str);    /* no errors yet */
-    while(X_chr && !syntax_error.harderrstr){ /* go until the first error only */
-       if(where != W_start && is_relation(&relsym) ){
-           must(where==W_bexpr,e_DOUBLE_REL);
-           where=W_rel;
-           switch(etype){
-             case expr_diff:  must(relsym==diff,e_DIFF_USEEQ); break;
-             case expr_macro: harderr(e_NO_REL_MACRO); break;
-             case expr_check: must(relsym!=diff,e_DBLEEQ_REL); break;
-             default:         /* OK */ break;
-           }
-           item.item_type=relsym;
-           convert_item_to_expr();
-           continue;
-       }
-       if(where!=W_start && where !=W_rel){
-           must(spy('+')||spy('-'),e_PLUSORMINUS);
-       }
+#define W_aexpr 1	/* after an item */
+
+static int parse_entropygroup(int level)
+{int where,iscoeff; double coeff;
+    for(where=W_start; X_chr && !syntax_error.harderrstr; 
+             where=W_aexpr){ /* go until the first error */
        iscoeff=0; if(is_signed_number(&coeff)){
           iscoeff=1;
           if(R('*')) iscoeff=2;
        } else { coeff=1.0; }
-       if((X_style==SIMPLE && is_simple_expression()) ||
+       if(R('{')){
+          double old_multiplier=ee_multiplier;
+          ee_multiplier *= coeff;
+          parse_entropygroup(level+1);
+          ee_multiplier=old_multiplier;
+       } else if((X_style==SIMPLE && is_simple_expression()) ||
           (X_style==SIMPLE && is_par_expression()) ||
           is_Ingleton() || is_macro_invocation()){
           item.multiplier=coeff;
-          if(where==W_start) where=W_bexpr;
-          if(where==W_rel) where=W_aexpr;
           if(coeff>1.5e-10 || coeff<-1.5e-10) convert_item_to_expr();
-          continue;
+       } else { // no item found
+          must(iscoeff!=2,e_WRONGAST);
+          if(where==W_start){ // empty or a single constant
+             must(level==0,e_EXTRANUM);
+             item.item_type=zero;
+             convert_item_to_expr();
+             return iscoeff==0 ? 1 : coeff==0.0 ? 2 : 3;
+          } else { // after an item
+             must(level==0,e_GROUPEND);
+             harderr(e_EXTRANUM);
+          }
        }
-       must(iscoeff!=2,e_WRONGAST);
-       if(where==W_start){
-          /* we must see a single zero followed by a relation */
-          must(etype!=expr_macro,e_WRONGITEM);
-          must(iscoeff,e_WRONGITEM);
-          must(is_relation(&relsym),e_WRONGITEM);
-          if(etype==expr_diff) must(relsym==diff,e_DIFF_USEEQ);
-          if(etype==expr_check)must(relsym!=diff,e_DBLEEQ_REL);
-          must(coeff==0.0,e_NOHOMOGEN);
-          item.item_type=zero;
-          convert_item_to_expr();
-          item.item_type=relsym;
-          convert_item_to_expr();
-          where=W_rel;
-          continue;
-       }
-       if(where==W_rel){ // we must see a single zero, that's all
-          must(iscoeff,e_WRONGITEM);
-          must(coeff==0.0,e_NOHOMOGEN);
-          item.item_type=zero;
-          convert_item_to_expr();
-          where=W_aexpr; // and this must be the last
-          must(spy(0),e_EXTRA_TEXT);
-          continue;
-       }
-       must(iscoeff==0,e_EXTRANUM);
-       must(X_chr==0,e_EXTRA_TEXT);
+       // next item
+       if(spy('+') || spy('-')) continue;
+       must(level==0 || R('}'),e_GROUPEND);
+       return 0;
     }
-    no_new_id(NULL);     // allow identifiers to be defined
-    must(where!=W_start,e_EMPTY);
-    must(etype==expr_macro || where!=W_bexpr,e_NORELATION);
-    must(etype!=expr_check || where!=W_rel, e_NORHS);
-    must(entropy_expr.n>0,e_ALLZERO); // only zero coeffs were used 
-    collapse_expr();     // forget zero coeffs */
+    return where==W_start ? 1 : 0;
 }
 #undef W_start
-#undef W_bexpr
-#undef W_rel
 #undef W_aexpr
+
+static void parse_entropyexpr(const char *str, int keep, etype_t etype)
+{int res; item_type_t relsym;
+    clear_entexpr();    /* clear the result space */
+    no_new_id(etype==expr_macro ? e_ID_IN_MACRO : NULL);
+    if(!keep) id_table_idx=0; /* don't keep identifiers */
+    init_parse(str);
+    res=parse_entropygroup(0);
+    must(res!=1,e_PLUSORMINUS); // empty left hand side
+    if(is_relation(&relsym)){
+        switch(etype){
+            case expr_diff:  must(relsym==diff,e_DIFF_USEEQ); break;
+            case expr_macro: harderr(e_NO_REL_MACRO); break;
+            case expr_check: must(relsym!=diff,e_DBLEEQ_REL); break;
+            default:         /* OK */ break;
+        }
+        must(res!=3,e_NOHOMOGEN); // nonzero constant
+        item.item_type=relsym;
+        convert_item_to_expr();
+        switch(parse_entropygroup(0)){ // right hand side
+            case 3:   // nonzero constant
+                  harderr(e_NOHOMOGEN); break;
+            case 1:   // empty right hand side
+                  must(etype!=expr_check,e_NORHS); break;
+            default:  break;
+        }
+    } else { // no relation found
+        must(etype==expr_macro,e_NORELATION);
+        must(res==0,e_EXTRANUM);
+    }
+    must(spy(0),e_WRONGITEM);
+    no_new_id(NULL);  // allow identifiers to be defined
+    must(entropy_expr.n>0,e_ALLZERO); // only zero coeffs were used
+    collapse_expr();  // forget zero coeffs
+}
 
 /***********************************************************************
 * int parse_entropy(char *str, int keep)
@@ -1235,7 +1236,7 @@ static int is_funcdep(int v1,int v2){
     item.var1=v1;
     item.var2=v2;
     convert_item_to_expr();
-    must(X_chr==0,e_EXTRA_TEXT);
+    must(spy(0),e_EXTRA_TEXT);
     return (syntax_error.softerrstr|| syntax_error.harderrstr) ? PARSE_ERR : PARSE_OK;
 }
 static int is_indep(char sep, int v1,int v2)
@@ -1258,7 +1259,7 @@ static int is_indep(char sep, int v1,int v2)
         }
         restore_pos(oldpos);
     }
-    must(X_chr==0,e_EXTRA_TEXT);
+    must(spy(0),e_EXTRA_TEXT);
     // check if none is a subset of the others
     for(i=0;i<entropy_expr.n;i++){
         v=0;
@@ -1289,7 +1290,7 @@ static int is_Markov(char sep, int v1,int v2)
         restore_pos(oldpos);
     }
     must(cnt>=3,e_MARKOV);
-    must(X_chr==0,e_EXTRA_TEXT);
+    must(spy(0),e_EXTRA_TEXT);
     return (syntax_error.softerrstr|| syntax_error.harderrstr) ? PARSE_ERR : PARSE_OK;
 }
 

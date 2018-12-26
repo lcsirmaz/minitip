@@ -14,7 +14,7 @@
 /* Version and copyright */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	4
-#define VERSION_SUB	4
+#define VERSION_SUB	5
 #define VERSION_STRING	mkstringof(VERSION_MAJOR.VERSION_MINOR.VERSION_SUB)
 
 #define COPYRIGHT	\
@@ -532,7 +532,7 @@ static void error_message(const char *orig)
     else { err=syntax_error.softerrstr; pos+=syntax_error.softerrpos; }
     if(orig) printf("%s\n",orig);
     else pos += strlen(minitip_PROMPT);
-    for(i=0;i<pos;i++)printf("-"); printf("^\nERROR: %s\n",err);
+    for(i=0;i<pos;i++){printf("-");} printf("^\nERROR: %s\n",err);
     if(syntax_error.showexpression){
         printf(" ==> "); print_expression(); printf("\n"); 
     }
@@ -789,12 +789,13 @@ static int com_syntax(const char *argv, const char *line)
 "An EXPRESSION is a linear combination of =>entropy terms and =>macro\n"
 "invocations, such as\n");
         if(minitip_style==syntax_short) printf(
-"      -1.234*(x|y) - 12.345(a%1$cb|h) + 3X(x%1$cb|ay)\nwhere X(%1$c|)",minitip_sepchar);
+"      -1.234*{ (x|y) - 12.345(a%1$cb|h)} + 3X(x%1$cb|ay)\nwhere X(%1$c|)",minitip_sepchar);
         else printf(
-"       -1.234*H(X|Y) - 12.345I(a;b|H) + 3X(X;b|a,Y)\nwhere X(;|)");
+"       -1.234*{ H(X|Y) - 12.345I(a;b|H)} + 3X(X;b|a,Y)\nwhere X(;|)");
         printf(
-" is a macro. The * sign between the constant and the\n"
-"entropy term is optional and can be omitted.\n");
+" is a macro. Spaces and the * sign between the constant\n"
+"and the entropy term are optional. For grouping use the curly\n"
+"braces '{' and '}' as above.\n");
         return 0;
     }
 /** RELATION **/

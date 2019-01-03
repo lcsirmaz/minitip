@@ -137,7 +137,7 @@ first in the working directory, then in the home directory. If found,
 the commands are executed before any other action. Alternative
 config file can be specified by the command line argument
 
-    -c \<file\>'
+    -c <file>
 
 The default config file can be inhibited by using the command line
 argument '-c-'. A sample config file can be

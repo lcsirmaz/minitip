@@ -85,7 +85,7 @@ extern struct syntax_error_t syntax_error;
 typedef enum {  /* type of the constrain/expression */
     ent_eq,	/* equal */
     ent_ge,	/* greater than or equal to zero */
-    ent_diff,	/* zap: difference of the two sides */
+    ent_diff,	/* unroll: difference of the two sides */
     ent_Markov,	/* Markov chain constraint */
     ent_mdef,	/* macro definition */
 } expr_type_t;
@@ -126,7 +126,7 @@ extern int macro_total;
 *      PARSE_GE  -- simplifies to 0>=0
 *
 * int parse_diff(char *str)
-*    parse str as a zap (==) string. Return value is PARSE_OK or PARSE_ERR,
+*    parse str as unroll (==) string. Return value is PARSE_OK or PARSE_ERR,
 *
 * int parse_constraint(char *str, int keep)
 *    parse str as a constraint: this is an expression, or functional

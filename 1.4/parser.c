@@ -692,17 +692,19 @@ void print_expression(void)
 static void print_natcoord(int idx)
 {static char *natcoords[]={
   "[a,b,c,d]",
-  "(a,b|c)","(a,b|d)","(a,c|b)","(b,c|a)","(a,d|b)","(b,d|a)",
-  "(c,d|a)","(c,d|b)","(c,d)","(a,b|cd)",
-  "(a|bcd)","(b|acd)","(c|abd)","(d|abc)"
+  "I(a,b|c)","I(a,b|d)","I(a,c|b)","I(b,c|a)","I(a,d|b)","I(b,d|a)",
+  "I(c,d|a)","I(c,d|b)","I(c,d)","I(a,b|cd)",
+  "H(a|bcd)","H(b|acd)","H(c|abd)","H(d|abc)"
   }; const char *v; int var=0;
-    if(idx!=0 && X_style==ORIGINAL) printf("I");
     for(v=natcoords[idx];*v;v++){
         switch(*v){
           case 'a': var |=1; break;
           case 'b': var |=2; break;
           case 'c': var |=4; break;
           case 'd': var |=8; break;
+          case 'I': case 'H':
+                    if(X_style==ORIGINAL) printf("%c",*v);
+                    break;
           default:
              if(var){printf("%s",get_idlist_repr(var,1)); var=0;}
              printf("%c",*v!=','?*v : X_style==ORIGINAL ? ';': X_sep);
@@ -749,7 +751,7 @@ static void print_mscoord(int idx)
    if(X_style==ORIGINAL){ // figure out if H() or I()
       cnt=0;
       for(i=idx;i>0;i>>=1){ if(i&1) cnt++; }
-      printf("%c",cnt==0?'H':'I');
+      printf("%c",cnt==1?'H':'I');
    }
    printf("("); cnt=0;
    for(i=0;i<id_table_idx;i++) if(idx &(1<<i)){
@@ -767,7 +769,7 @@ static void print_mscoord(int idx)
       }
    }
    for(i=0;i<cnt;i++){
-       if(i>0){printf("%c",X_style==ORIGINAL ? ',':X_sep);}
+       if(i>0){printf("%c",X_style==ORIGINAL ? ';':X_sep);}
        printf("%s",unsorted[i]);
    }
    if(cnt<id_table_idx){
@@ -1219,7 +1221,7 @@ static int is_macro_invocation(void)
 */
 typedef enum {
   expr_check, 	/* check or constraint */
-  expr_diff, 	/* diff (zap) */
+  expr_diff, 	/* diff (unroll) */
   expr_macro,	/* macro definition */
   expr_coord,	/* express in other coordinate system */
   expr_coordn,	/* same, but no new variables */

@@ -41,25 +41,27 @@ at the terminal. Here is an example session.
 
     PROMPT> minitip
     minitip: help
-     quit            quit minitip
-     help            display this text
-     ?               synonym for 'help'
-     check           check inequality with constraints
-     test            synonym for 'check'
-     xcheck          check without constraints
-     add             add new constraint
-     list            list constraints: 3, 4-5
-     del             delete numbered constraints
-     zap             print missing entropy terms on RHS
-     macro           add, list, delete macros
-     run             execute commands from a file
-     style           show / change formula style
-     syntax          how to enter entropy formulas
-     set             list / set runtime parameters
-     dump            dump constraints and macro definitions
-     save            save command history
-     about           history, license, author, etc
-     args            accepted command line arguments
+     quit        quit minitip
+     help        display this text
+     ?           synonym for 'help'
+     check       check entropy relation with constraints
+     test        synonym for 'check'
+     xcheck      check entropy relation without constraints
+     add         add new constraint
+     list        list all or specified constraints: 3,5-7
+     del         delete numbered constraint
+     unroll      print missing entropy terms on RHS
+     ext         convert to extended information measures
+     nat         convert to natural coordinates
+     macro       add, list, delete macros
+     run         execute commands from a file
+     style       show / change formula style
+     syntax      describe how to enter entropy formulas
+     set         list / set runtime parameters
+     dump        dump constraints and macro definitions to a file
+     save        save command history to a file
+     about       history, license, author, etc
+     args        accepted command line arguments
     minitip: add (e,ad|bc)=0
     minitip: list all
     Constraints (total 1)
@@ -87,9 +89,9 @@ Accepted flags and exit values are:
 | -q    | quiet, just check, don't print anything. Must have an argument to check |
 | -e    | last flag, use when the expression starts with a minus sign |
 | -f \<file\> | use \<file\> as the command history file (default: **.minitip**) |
-| -c \<file\> | use \<file\> as init file (default: **.minitiprc**) |
-| -m \<macro\> | add the macro definition |
-| -c-   | don't use init file |
+| -c \<file\> | use \<file\> as the config file (default: **.minitiprc**) |
+| -c-   | don't read the default config file |
+| -m \<macro\> | add macro definition |
 | -v    | print version, copyright, and quit |
 
 | Exit values | (when checking validity of the first argument) |
@@ -125,20 +127,25 @@ Some features of minitip can be fine-tuned by the 'set' command, such as
 * the time and iteration limit on the LP solver; 
 * how many macros and constraints are accepted; 
 * whether executing command from a file should stop at all errors, or only at fatal ones;
-* whether comment lines(lines startig with # mark) are printed or not
+* whether comment lines (lines starting with a # mark) are printed or not
 * command can be abbreviated to any unique prefix
 * when finishing, command line history should be automatically saved or not
 * in simple style variables ending with digits are accepted or not
 
-When started, minitip looks for an init file (specified after the '-c'
-command-line argument) in the working directory, then in the home directory.
-If found, it is executed before the first prompt. An example init file 
-can be
+When started, minitip looks for the default config file .minitiprc
+first in the working directory, then in the home directory. If found, 
+the commands are executed before any other action. Alternative
+config file can be specified by the command line argument
+
+    -c \<file\>'
+
+The default config file can be inhibited by using the command line
+argument '-c-'. A sample config file can be
 
     # sample .minitiprc
     # comment lines in run files are printed
     set comment=yes
-    # don't ask when quitting minitip
+    # forget history when quitting minitip
     set save=no
     # allow abbreviated commands
     set abbrev=yes

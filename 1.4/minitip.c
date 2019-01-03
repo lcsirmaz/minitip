@@ -294,7 +294,7 @@ static COMMAND commands[] = {
 {"list",   com_list,  0, pm_list,   NULL,	"list all or specified constraints: 3,5-7"},
 {"del",	   com_del,   0, pm_help,   NULL,	"delete numbered constraint"},
 {"unroll", com_diff,  0, pm_help,   NULL,	"print missing entropy terms on RHS"},
-{"ext",    com_ext,   0, pm_help,   NULL,	"convert to extended measures"},
+{"ext",    com_ext,   0, pm_help,   NULL,	"convert to extended information measures"},
 {"nat",    com_nat,   0, pm_help,   NULL,	"convert to natural coordinates"},
 {"macro",  com_macro, 0, pm_macro,  NULL,	"add, list, delete macros"},
 {"run",    com_batch, 1, NULL,      NULL,	"execute commands from a file"},
@@ -875,11 +875,11 @@ static int com_syntax(const char *argv, const char *line)
 /* CONVERT */
     if(strncmp(argv,"convert",3)==0){ // convert
         printf(
-" The entropy =>expression is converted using (extended) measures, or\n"
-" natural coordinates. The expression can optionally be preceeded by a\n"
-" list of =>variables determining the coordinates. The variable list and\n"
-" the expression is separated by a '/' character. Natural coordinates\n"
-" require exactly four variables. Example:\n");
+" The entropy =>expression is converted using (extended) information\n"
+" measures, or natural coordinates. The expression can optionally be\n"
+" preceeded by a list of =>variables determining the coordinates. The\n"
+" variable list and the expression is separated by a '/' character.\n"
+" Natural coordinates require exactly four variables. Example:\n");
         if(minitip_style==syntax_short) printf(
 // simple style
 "        nat u%1$cv%1$cx%1$cy / [v%1$cx%1$cu%1$cy]+uvx\n",minitip_sepchar);
@@ -896,15 +896,15 @@ static int com_syntax(const char *argv, const char *line)
 " Natural coordinates for variables a,b,c,d (in this order) are\n"
 "        [a%1$cb%1$cc%1$cd]\n"
 "        (a%1$cb|c), (a%1$cb|d), (a%1$cc|b), (b%1$cc|a), (a%1$cd|b), (b%1$cd|a)\n"
-"        (c%1$cd|a), (c%1$cd|b), (c%1$cd), (a%1$cb|cd)\n"
+"        (c%1$cd|a), (c%1$cd|b), (c%1$cd),   (a%1$cb|cd)\n"
 "        (a|bcd), (b|acd), (c|abd), (d|abc)\n",minitip_sepchar);
         else printf(
 " V,X,U,Y.\n"
 " Natural coordinates for variables A,B,C,D (in this order) are\n"
 "        [A;B;C;D]\n"
-"        I(A;B|c), I(A;B|D), I(A;C|B), I(B;C|A), I(A;D|B), I(B;D|A)\n"
-"        I(A;B|C), I(A;B|D), I(C;D), I(A;B|C,D)\n"
-"        H(A|B,C,D). H(B|A,C,D), H(C|A,B,D), H(D|B,C,D)\n");
+"        I(A;B|C), I(A;B|D), I(A;C|B), I(B;C|A), I(A;D|B), I(B;D|A)\n"
+"        I(C;D|A), I(C;D|B), I(C;D),   I(A;B|C,D)\n"
+"        H(A|B,C,D), H(B|A,C,D), H(C|A,B,D), H(D|B,C,D)\n");
         return 0;
     }
     if(!line) /* only if online */

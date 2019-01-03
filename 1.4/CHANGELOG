@@ -1,3 +1,8 @@
+1.4.6
+add conversion commands "ext" and "nat" to convert an expression
+to I-measures, and natural coordinates, respectively. Tidy up
+some help text, mainly using one space indent.
+
 1.4.5
 allow curly braces {} to group entropy terms; change some
 documentation.

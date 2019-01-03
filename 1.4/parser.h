@@ -136,6 +136,11 @@ extern int macro_total;
 * int parse_macro_definition(char *str)
 *    parse str as a macro definition. If successful, also stores the
 *    macro at the next macro slot. Return value is PARSE_OK or PARSE_ERR.
+*
+* int parse_conv(char *str,int maxvar)
+*    parse str as an optional variable list followed by an expression.
+*    maxvar is 4 for natural coords, and 0 otherwise.
+*    Return value is PARSE_OK or PARSE_ERR
 */
 #define PARSE_OK	0
 #define PARSE_ERR	1
@@ -146,6 +151,7 @@ int parse_entropy(const char *str, int keep);
 int parse_diff(const char *str);
 int parse_constraint(const char *str, int keep);
 int parse_macro_definition(const char *str);
+int parse_conv(const char *str, int maxvar);
 
 /***********************************************************************
 * Delete a macro
@@ -165,6 +171,10 @@ void delete_macro_with_idx(int idx);
 *
 *  void print_expression(void)
 *    print out the expression in entropy_expr
+*  void print_in_natural_coords(void)
+*    print the expression in natural coords (assuming 4 variables)
+*  void print_in_measures(void)
+*    print the expression in measures
 *  int print_macros_with_name(char name,int from)
 *    print all macros with the given character as name above slot from
 *    (standard macros are NOT printed) Returns the number of macros
@@ -175,6 +185,8 @@ void delete_macro_with_idx(int idx);
 *    print macro definition to a file.
 */
 void print_expression(void);
+void print_in_natural_coords(void);
+void print_in_measures(void);
 int print_macros_with_name(char name,int from);
 void print_macro_with_idx(int idx);
 void dump_macro_with_idx(FILE *to, int idx);

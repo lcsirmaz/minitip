@@ -120,6 +120,13 @@ inline static void adjust_error_position(int d)
 #define e_NOMACROARG	"no macro with this name and pattern is defined"
 #define e_ID_IN_MACRO	"only macro arguments can be used as variables"
 #define e_NO_REL_MACRO	"no relation is allowed in a macro definition"
+#define e_ID_IN_COORD	"only the specified variables can be used"
+#define e_NO_REL_COORD	"no relation is allowed here"
+#define e_COORD_NOVAR	"simple variable is expected here"
+#define e_COORD_SAMEVAR	"coordinate variables must be different"
+#define e_COORD_ENDVAR	"the list of coordinate variables is closed by a '/'"
+#define e_COORD_VARNO	"wrong number of coordinate variables"
+#define e_COORD_SIMP	"the expression simplifies to 0"
 #define e_MDEF_NAME	"macro definition starts with the macro name followed by '('"
 #define e_MDEF_NOPAR	"missing argument: a single variable is expected here"
 #define e_MDEF_NOSTD	"standard entropy functions cannot be redefined"
@@ -619,7 +626,7 @@ static int first_variable_not_used(void)
 *    returns the number of bits set in v.
 *
 * void sort_expr_by_variables(void)
-*    using bubble sort reshuffle the expression terms.
+*    using bubble sort to reshuffle the expression terms.
 */
 inline static int bitno(int v)
 {int i;
@@ -679,6 +686,117 @@ void print_expression(void)
             printf("%s",get_idlist_repr(ee_item[i].var,1));
         }
     }
+}
+/* print expression in natural coordinates: assume exactly
+   four variables are used */
+static void print_natcoord(int idx)
+{static char *natcoords[]={
+  "[a,b,c,d]",
+  "(a,b|c)","(a,b|d)","(a,c|b)","(b,c|a)","(a,d|b)","(b,d|a)",
+  "(c,d|a)","(c,d|b)","(c,d)","(a,b|cd)",
+  "(a|bcd)","(b|acd)","(c|abd)","(d|abc)"
+  }; const char *v; int var=0;
+    if(idx!=0 && X_style==ORIGINAL) printf("I");
+    for(v=natcoords[idx];*v;v++){
+        switch(*v){
+          case 'a': var |=1; break;
+          case 'b': var |=2; break;
+          case 'c': var |=4; break;
+          case 'd': var |=8; break;
+          default:
+             if(var){printf("%s",get_idlist_repr(var,1)); var=0;}
+             printf("%c",*v!=','?*v : X_style==ORIGINAL ? ';': X_sep);
+        }
+    }
+}
+/* print the expression stored in ee_item[] in natural coordinates */
+void print_in_natural_coords(void)
+{static int invnat[]={
+  -2, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, // a     1 
+  -2, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, // b     2
+  -3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 0, 0, // ab    3
+  -2, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 0, // c     4
+  -3, 1, 1, 1, 1, 1, 0, 2, 1, 1, 2, 1, 0, 1, 0, // ac    5
+  -3, 1, 1, 1, 1, 0, 1, 1, 2, 1, 2, 0, 1, 1, 0, // bc    6
+  -4, 1, 1, 1, 1, 1, 1, 2, 2, 1, 3, 1, 1, 1, 0, // abc   7
+  -2, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, // d     8
+  -3, 1, 1, 1, 0, 1, 1, 2, 1, 1, 2, 1, 0, 0, 1, // ad    9
+  -3, 1, 1, 0, 1, 1, 1, 1, 2, 1, 2, 0, 1, 0, 1, // bd   10 
+  -4, 1, 1, 1, 1, 1, 1, 2, 2, 1, 3, 1, 1, 0, 1, // abd  11
+  -4, 1, 1, 1, 1, 1, 1, 2, 2, 1, 2, 0, 0, 1, 1, // cd   12
+  -4, 1, 1, 1, 1, 1, 1, 2, 2, 1, 3, 1, 0, 1, 1, // acd  13
+  -4, 1, 1, 1, 1, 1, 1, 2, 2, 1, 3, 0, 1, 1, 1, // bcd  14
+  -4, 1, 1, 1, 1, 1, 1, 2, 2, 1, 3, 1, 1, 1, 1, // abcd 15
+  }; double d; int i,j;
+   if(ee_n<=0){ printf("0"); return; }
+   for(i=0;i<15;i++){
+       d=0.0; // use column i from invnat[]
+       for(j=0;j<ee_n;j++)
+          if(1<=ee_item[j].var && ee_item[j].var<=15){
+             d+= ee_item[j].coeff*invnat[i+(ee_item[j].var-1)*15];
+       }
+       if(d<1e-9 && d>-1e-9) continue;
+       if(d<1.0+1e-9 && d>1.0-1e-9){ printf("+"); }
+       else if(d<-1.0+1e-9 && d>-1.0-1e-9){ printf("-"); }
+       else {printf("%+lg",d); }
+       print_natcoord(i);
+   }
+}
+/* print information measure; idx < (1<<id_table_idx) */
+static void print_mscoord(int idx)
+{int i,j,cnt; const char *unsorted[minitip_MAX_ID_NO+1];
+   if(idx==0) return;
+   if(X_style==ORIGINAL){ // figure out if H() or I()
+      cnt=0;
+      for(i=idx;i>0;i>>=1){ if(i&1) cnt++; }
+      printf("%c",cnt==0?'H':'I');
+   }
+   printf("("); cnt=0;
+   for(i=0;i<id_table_idx;i++) if(idx &(1<<i)){
+      unsorted[cnt]=id_table[i].id;
+      cnt++;
+   }
+   j=1; // sort the variables
+   while(j){
+      j=0;
+      for(i=0;i<cnt-1;i++){
+         if(strcmp(unsorted[i],unsorted[i+1])>0){
+            const char *var=unsorted[i];unsorted[i]=unsorted[i+1];
+            unsorted[i+1]=var; j=1;
+         }
+      }
+   }
+   for(i=0;i<cnt;i++){
+       if(i>0){printf("%c",X_style==ORIGINAL ? ',':X_sep);}
+       printf("%s",unsorted[i]);
+   }
+   if(cnt<id_table_idx){
+      printf("|%s",get_idlist_repr(-1+(1<<id_table_idx)-idx,1));
+   }
+   printf(")");
+}
+/* print the expression stored in ee_item[] in measures */
+void print_in_measures(void)
+{int w,ww,i,ii,j,mask; double d;
+   if(ee_n<=0){ printf("0"); return; }
+   mask=-1+(1<<id_table_idx);
+   // go over subsets by Hamming weight
+   for(w=1;w<=id_table_idx;w++){
+    for(i=1;i<=mask;i++){ // skip if weight is not w
+      for(ww=0,ii=i;ii;ii>>=1){if(ii&1)ww++; }
+      if(w!=ww) continue;
+      d=0.0;
+      for(j=0;j<ee_n;j++)
+         if(i&ee_item[j].var){
+            d+=ee_item[j].coeff;
+      }
+      if(d<1e-9 && d>-1e-9) continue;
+      if(d<1.0+1e-9 && d>1.0-1e-9){ printf("+"); }
+      else if(d<-1.0+1e-9 && d>-1.0-1e-9){ printf("-"); }
+      else {printf("%+lg",d); }
+      print_mscoord(i);
+    }
+   }
 }
 /* dump a macro */
 void dump_macro_with_idx(FILE *to, int idx)
@@ -1103,6 +1221,8 @@ typedef enum {
   expr_check, 	/* check or constraint */
   expr_diff, 	/* diff (zap) */
   expr_macro,	/* macro definition */
+  expr_coord,	/* express in other coordinate system */
+  expr_coordn,	/* same, but no new variables */
 } etype_t;
 
 #define W_start 0	/* we are at the start */
@@ -1151,17 +1271,20 @@ static int parse_entropygroup(int level)
 static void parse_entropyexpr(const char *str, int keep, etype_t etype)
 {int res; item_type_t relsym;
     clear_entexpr();    /* clear the result space */
-    no_new_id(etype==expr_macro ? e_ID_IN_MACRO : NULL);
+    no_new_id(etype==expr_macro ? e_ID_IN_MACRO : 
+              etype==expr_coordn ? e_ID_IN_COORD : NULL);
     if(!keep) id_table_idx=0; /* don't keep identifiers */
     init_parse(str);
     res=parse_entropygroup(0);
     must(res!=1,e_PLUSORMINUS); // empty left hand side
     if(is_relation(&relsym)){
         switch(etype){
-            case expr_diff:  must(relsym==diff,e_DIFF_USEEQ); break;
-            case expr_macro: harderr(e_NO_REL_MACRO); break;
-            case expr_check: must(relsym!=diff,e_DBLEEQ_REL); break;
-            default:         /* OK */ break;
+            case expr_diff:   must(relsym==diff,e_DIFF_USEEQ); break;
+            case expr_macro:  harderr(e_NO_REL_MACRO); break;
+            case expr_coord:  harderr(e_NO_REL_COORD); break;
+            case expr_coordn: harderr(e_NO_REL_COORD); break;
+            case expr_check:  must(relsym!=diff,e_DBLEEQ_REL); break;
+            default:          /* IMPOSSIBLE */ break;
         }
         must(res!=3,e_NOHOMOGEN); // nonzero constant
         item.item_type=relsym;
@@ -1174,8 +1297,9 @@ static void parse_entropyexpr(const char *str, int keep, etype_t etype)
             default:  break;
         }
     } else { // no relation found
-        must(etype==expr_macro,e_NORELATION);
         must(res==0,e_EXTRANUM);
+        must(etype!=expr_check,e_NORELATION);
+//        must(etype!=expr_diff,e_NORELATION);
     }
     must(spy(0),e_WRONGITEM);
     no_new_id(NULL);  // allow identifiers to be defined
@@ -1418,5 +1542,44 @@ int parse_macro_definition(const char *str)
     return(syntax_error.softerrstr|| syntax_error.harderrstr)? PARSE_ERR : PARSE_OK;
 }
 
+/***********************************************************************
+* parse a conversion request. It may start with a variable list and slash,
+*   followed by the obligatory expression to be converted.
+*
+* int parse_conv(char *str,int maxvar)
+*   if maxvar>0, expect exactly that many variables;
+*   otherwise expect at least two variables. The expression should not be
+*   empty.
+*/
+int parse_conv(const char *str, int maxvar)
+{int var,varno; int done,defpos; etype_t type;
+    clear_entexpr();	// clear the result space
+    no_new_id(NULL);	// add new variables
+    id_table_idx=0;	// don't keep old identifiers
+    type=expr_coord;	// expression type
+    init_parse(str);
+    for(defpos=X_pos;X_str[defpos] && X_str[defpos]!='/';defpos++);
+    if(X_str[defpos]){	// it contains a slash
+       varno=0;
+       type=expr_coordn;// no new variables allowed
+       for(done=0;!done;){
+         must(is_variable(&var),e_COORD_NOVAR);
+         must(var==1<<varno,e_COORD_SAMEVAR);
+         varno++;
+         if(R(X_sep)){
+            must(maxvar==0 || varno<maxvar,e_COORD_VARNO);
+         } else if(spy('/')){
+            must((maxvar>0 ? varno==maxvar : varno>1),e_COORD_VARNO);
+            next_chr(); done=1; // skip slash and done
+         } else { must(R('/'),e_COORD_ENDVAR); done=1; }
+       }
+       if(syntax_error.softerrstr || syntax_error.harderrstr) return PARSE_ERR;
+    }
+    defpos=X_pos; 
+    parse_entropyexpr(str+defpos,1,type);
+    must(entropy_expr.n>0,e_COORD_SIMP);
+    adjust_error_position(defpos); // in case of an error
+    return(syntax_error.softerrstr|| syntax_error.harderrstr)? PARSE_ERR : PARSE_OK;
+}
 
 /** EOF **/

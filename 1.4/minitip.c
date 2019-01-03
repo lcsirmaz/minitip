@@ -14,11 +14,11 @@
 /* Version and copyright */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	4
-#define VERSION_SUB	5
+#define VERSION_SUB	6
 #define VERSION_STRING	mkstringof(VERSION_MAJOR.VERSION_MINOR.VERSION_SUB)
 
 #define COPYRIGHT	\
-"Copyright (C) 2016-2018 Laszlo Csirmaz, Central European University, Budapest"
+"Copyright (C) 2016-2019 Laszlo Csirmaz, Central European University, Budapest"
 
 /*----------------------------------------------------------------------------*/
 
@@ -248,6 +248,8 @@ static com_func_t
   com_syntax,	/* formula syntax help */
   com_nocon,	/* check without constraints */
   com_diff,	/* difference of two expressions */
+  com_ext,	/* convert to extended measures */
+  com_nat,	/* convert to natural coordinates */
   com_about,	/* print license info */
   com_args,	/* command line arguments */
   com_macro,	/* handle macros: del, list, define */
@@ -292,6 +294,8 @@ static COMMAND commands[] = {
 {"list",   com_list,  0, pm_list,   NULL,	"list all or specified constraints: 3,5-7"},
 {"del",	   com_del,   0, pm_help,   NULL,	"delete numbered constraint"},
 {"unroll", com_diff,  0, pm_help,   NULL,	"print missing entropy terms on RHS"},
+{"ext",    com_ext,   0, pm_help,   NULL,	"convert to extended measures"},
+{"nat",    com_nat,   0, pm_help,   NULL,	"convert to natural coordinates"},
 {"macro",  com_macro, 0, pm_macro,  NULL,	"add, list, delete macros"},
 {"run",    com_batch, 1, NULL,      NULL,	"execute commands from a file"},
 {"style",  com_style, 0, pm_style,  NULL,	"show / change formula style"},
@@ -349,7 +353,7 @@ static char *pm_syntax(const char *txt, int state)
 {static int list_index=0; const char *name;
  static const char *syntaxargs[]={
   "style","variable","entropy","expression","measure","relation",
-  "constraint","macro","unroll",NULL };
+  "constraint","macro","unroll","convert",NULL };
     if(!state){ list_index=0; }
     while((name=syntaxargs[list_index])!=NULL){
         list_index++;
@@ -555,6 +559,8 @@ static void error_message(const char *orig)
 *   com_check(char *arg, char *line)    check relation with constraints
 *   com_nocon(char *arg, char *line)    check relation without constraints
 *   com_diff (char *arg, char *line)    print difference of two expressions
+*   com_ext  (char *arg, char *lime)	convert to extended measures
+*   con_nat  (char *arg, char *line)	convert to natural coordinates
 *   com_dump (char *arg, char *line)    dump constraints and macro definitions
 *   com_save (char *arg, char *line)    save history
 *   com_set  (char *arg, char *line)    list/set parameters
@@ -610,7 +616,7 @@ static int com_help(const char *arg, const char *line)
 {int i, printed=0;
     for(i=0;commands[i].name;i++){
         if(!*arg || cmp_s(arg,commands[i].name)==0){
-            printf(" %s\t\t%s\n",commands[i].name,commands[i].doc);
+            printf(" %-12s%s\n",commands[i].name,commands[i].doc);
             printed++;
         }
     }
@@ -646,19 +652,20 @@ static int com_quit(const char *arg, const char *line)
 
 /** SYNTAX  -- give help on syntax of different constructs **/
 static int com_syntax(const char *argv, const char *line)
-/** style / variable / entropy / expression / relation / constraint / macro / unroll / measure **/
+/** style / variable / entropy / expression / relation / constraint / 
+    macro / unroll / measure / convert **/
 {
 /** STYLE **/
     if(strncasecmp(argv,"style",3)==0){ // on style
         printf(
-"Minitip can work in 'full' (standard) or in 'simple' style, which\n"
-"  determines random =>variables and =>entropy terms are parsed.\n"
-"FULL (or standard) style\n"
-"  Random variables are identifiers such as X12 or Winter. The entropy\n"
-"  and mutual information follows the standard: H(X1,Winter) is the\n"
-"  joint entropy of X1 and Winter; I(A,Winter;X1,Y|Z) is the\n"
+" Minitip can work in 'full' (standard) or in 'simple' style, which\n"
+"  determines how =>variables and =>entropy terms are parsed.\n"
+" FULL (or standard) style\n"
+"  Random variables are identifiers such as 'X12' or 'Winter'. The\n"
+"  entropy and mutual information follows the standard: 'H(X1,Winter)'\n"
+"  is the joint entropy of X1 and Winter; 'I(A,Winter;X1,Y|Z)' is the\n"
 "  conditional mutual information of A,Winter and X1,Y given Z.\n"
-"SIMPLE (or lazy) style\n"
+" SIMPLE (or lazy) style\n"
 "  Random variables are single lower case letters (additional primes are\n"
 "  allowed) such as x or x'. Put variables next to each other for their\n"
 "  joint distribution. Any list such as abc denotes its own entropy.\n"
@@ -667,202 +674,237 @@ static int com_syntax(const char *argv, const char *line)
 "  other specified character. With , as separator I(ab,xy|z) or (ab,xy|z)\n"
 "  is the conditional mutual information of a,b and x,y given z. The same\n"
 "  entropy term with separator : is written as (ab:xy|z).\n"
-"Enter 'style full' or 'style simple <separator-char>' to set the style.\n"
-"Warning: changing the style deletes all stored =>constraints.\n"
-"The present style is ");
+" Enter 'style full' or 'style simple <separator-char>' to set the style.\n"
+" Warning: changing the style deletes all stored =>constraints.\n"
+" The present style is ");
         if(minitip_style==syntax_short) printf(
-"SIMPLE (lazy) using \"%c\" as separator.\n",minitip_sepchar);
+" SIMPLE (lazy) using \"%c\" as separator.\n",minitip_sepchar);
         else printf("FULL (standard).\n");
         return 0;
     }
 /** VARIABLES **/
     if(strncasecmp(argv,"var",3)==0){ // give syntax of vars and var list
         printf(
-"The form of random variables and variable lists depends on the =>style.\n");
+" The form of random variables and variable lists depends on the =>style.\n");
         printf( minitip_style==syntax_short ?
 // simple style
-"In simple style random variables are lower case letters from a to z,\n"
-"optionally followed by a sequence of primes such as a, a', a'', etc.\n"
-"Put variables next to each other for their joint distribution, such\n"
-"as ac'rs' or abrstu.\n" :
+" In simple style random variables are lower case letters from a to z,\n"
+" optionally followed by a sequence of primes such as a, a', a'', etc.\n"
+" Put variables next to each other for their joint distribution, such\n"
+" as ac'rs' or abrstu.\n" :
 // full style
-"In full style random variables are identifiers such as X, Snow_fall,\n"
-"Winter; primes can be appended so you can use A' or Winter' as well.\n"
-"Variables are case sensitive thus x and X denote different variables.\n"
-"Variable list is a sequence separated by commas, such as X',y,Y or\n"
-"Snow_fall,Winter.\n");
+" In full style random variables are identifiers such as X, Snow_fall,\n"
+" Winter; primes can be appended so you can use A' or Winter' as well.\n"
+" Variables are case sensitive thus x and X denote different variables.\n"
+" Variable list is a sequence separated by commas, such as X',y,Y or\n"
+" Snow_fall,Winter.\n");
         return 0;
     }
     if(strncasecmp(argv,"entrop",3)==0){ // entropy syntax
 /** ENTROPY **/
         printf(
-"Basic entropy terms such as conditional entropy or mutual information\n"
-"are built from a list of random =>variables. The notation depends on\n"
-"the =>style. ");
+" Basic entropy terms such as conditional entropy or mutual information\n"
+" are built from a list of random =>variables. The notation depends on\n"
+" the =>style.");
         if(minitip_style==syntax_short) printf(
 // simple style
-"In simple (lazy) style with separating character %1$c these\n"
-"terms can be abbreviated to minimal:\n"
-" a) the joint entropy of the list of random variables a,c,r,s is entered as\n"
-"     H(acrs)     or  acrs\n"
-" b) the conditional entropy H(a,b|r,s) can be written as\n"
-"     H(ab|rs)    or  (ab|rs)\n"
-" c) the mutual information I(a,b;r,s) is entered as\n"
-"     I(ab%1$crs)    or  (ab%1$crs)\n"
-" d) the conditional mutual information I(a,b;r,s|c,d) is\n"
-"     I(ab%1$crs|cd) or  (ab%1$crs|cd)\n"
-" e) the Ingleton expression  -(a%1$cb)+(a%1$cb|c)+(a%1$cb|d)+(c%1$cd) is\n"
-"     [a%1$cb%1$cc%1$cd]\n"
-" f) an invocation of the three argument =>macro X(%1$c|) is entered as\n"
-"     X(ab%1$cc|a)\n",minitip_sepchar);
+" In simple (lazy) style with separating character %1$c these\n"
+" terms can be abbreviated to minimal:\n"
+".  H(acrs)     or  acrs\n"
+"     joint entropy of the random variables a,c,r,s\n"
+".  H(ab|rs)    or  (ab|rs)\n"
+"     conditional entropy of a,b assuming r,s\n"
+".  I(ab%1$crs)    or  (ab%1$crs)\n"
+"     mutual information of a,b and r,s\n"
+".  I(ab%1$crs|cd) or  (ab%1$crs|cd)\n"
+"     conditional mutual information\n"
+".  [a%1$cb%1$cc%1$cd]\n"
+"     Ingleton expression  -(a%1$cb)+(a%1$cb|c)+(a%1$cb|d)+(c%1$cd)\n"
+".  X(ab%1$cc|a)\n"
+"     invocation of the three argument =>macro X(%1$c|)\n",minitip_sepchar);
         else printf(
 // full style
-"In full (standard) style it follows the standard notation:\n"
-" a) H(W,S)       entropy of the joint distribution of W and S\n"
-" b) H(W,S|F,T)   conditional entropy\n"
-" c) I(W,F;S)     mutual information of W,F and S\n"
-" d) I(W,F;S|day) conditional mutual information\n"
-" e) [A;B;C;D]    shorthand for the Ingleton expression\n"
+" In full (standard) style it follows the standard notation:\n"
+".  H(W,S)       entropy of the joint distribution of W and S\n"
+".  H(W,S|F,T)   conditional entropy\n"
+".  I(W,F;S)     mutual information of W,F and S\n"
+".  I(W,F;S|day) conditional mutual information\n"
+".  [A;B;C;D]    shorthand for the Ingleton expression\n"
 "                     -I(A;B)+I(A;B|C)+I(A;B|D)+I(C;D)\n"
-" f) X(A,B;C|A)   invocation of the three argument =>macro X(;|).\n");
+".  X(A,B;C|A)   invocation of the three argument =>macro X(;|).\n");
         return 0;
     }
 /** MEASURES **/
     if(strncasecmp(argv,"measure",4)==0){ // measure
         printf(
-"Next to the usual Shannon entropy measures, extended (unconditional\n"
-"and conditional) information measures are rocognized as well:\n");
+" Next to the usual Shannon entropy measures, extended (unconditional\n"
+" and conditional) information measures are recognized as well:\n");
         if(minitip_style==syntax_short) printf(
 // simple style
-"    (a%1$cb%1$cc)      for (a%1$cb)-(a%1$cb|c)\n"
-"    (a%1$cb%1$cc|x)    for (a%1$cb|x)-(a%1$cb|cx)\n"
-"    (a%1$cb%1$cc%1$cd)    for (a%1$cb%1$cc)-(a%1$cb%1$cc|d)\n"
-"    (a%1$cb%1$cc%1$cd|x)  for (a%1$cb%1$cc|x)-(a%1$cb%1$cc|dx), etc,\n",minitip_sepchar);
+".  (a%1$cb%1$cc)      for (a%1$cb)-(a%1$cb|c)\n"
+".  (a%1$cb%1$cc|x)    for (a%1$cb|x)-(a%1$cb|cx)\n"
+".  (a%1$cb%1$cc%1$cd)    for (a%1$cb%1$cc)-(a%1$cb%1$cc|d)\n"
+".  (a%1$cb%1$cc%1$cd|x)  for (a%1$cb%1$cc|x)-(a%1$cb%1$cc|dx), etc,\n",minitip_sepchar);
         else printf(
 // full style
-"    I(A;B;C)     for I(A;B)-I(A;B|C)\n"
-"    I(A;B;C|X)   for I(A;B|X)-I(A;B|C,X)\n"
-"    I(A;B;C;D)   for I(A;B;C)-I(A;B;C|D)\n"
-"    I(A;B;C;D|X) for I(A;B;C|X)-I(A;B;C|D,X), etc,\n");
+".  I(A;B;C)     for I(A;B)-I(A;B|C)\n"
+".  I(A;B;C|X)   for I(A;B|X)-I(A;B|C,X)\n"
+".  I(A;B;C;D)   for I(A;B;C)-I(A;B;C|D)\n"
+".  I(A;B;C;D|X) for I(A;B;C|X)-I(A;B;C|D,X), etc,\n");
         printf(
-"up to depth " mkstringof(minitip_MAX_MEASURE_DEPTH) ".\n"
-"To disable this feature enter 'set measure=false'.\n");
+" up to depth " mkstringof(minitip_MAX_MEASURE_DEPTH) ".\n"
+" To disable this feature enter 'set measure=false'.\n");
         return 0;
     }
 /** MACRO **/
     if(strncasecmp(argv,"macro",4)==0){ // macro
         printf(
-"A MACRO is a shorthand for an entropy =>expression. A macro definition\n"
-"starts with a capital letter from A-Z followed by the argument list which\n"
-"is enclosed in parentheses. Arguments are separated by either %c or |.\n"
-"The same macro name can identify several different expressions depending\n"
-"on the number of arguments and the separator characters. The following\n"
-"lines define two different macros with four arguments each:\n",minitip_sepchar);
+" A MACRO is a shorthand for an entropy =>expression. A macro definition\n"
+" starts with a capital letter from A-Z followed by the argument list which\n"
+" is enclosed in parentheses. Arguments are separated by either %c or |.\n"
+" The same macro name can identify several different expressions depending\n"
+" on the number of arguments and the separator characters. The following\n"
+" lines define two different macros with four arguments each:\n",minitip_sepchar);
         if(minitip_style==syntax_short) printf(
 //simple style
-"    macro add T(x%1$cy|t%1$cz) = 3(tx%1$cy|z)+2(x%1$cty|z)+(t%1$cz|xy)\n"
-"    macro add T(a|b|c%1$cd) = -(a|bc)+2(a%1$cc|bd)-7*[a%1$cb%1$cc%1$cd]\n",minitip_sepchar);
+"     macro add T(x%1$cy|t%1$cz) = 3(tx%1$cy|z)+2(x%1$cty|z)+(t%1$cz|xy)\n"
+"     macro add T(a|b|c%1$cd) = -(a|bc)+2(a%1$cc|bd)-7*[a%1$cb%1$cc%1$cd]\n",minitip_sepchar);
         else printf(
 //full style
-"    macro add T(X;Y|Z1;Z2) = 3I(Z1,X;Y|Z2)+2I(X;Y,Z2|Z1)+H(X,Y|Z1,Z2)\n"
-"    macro add T(a|b|c;d) = -H(a|b,c) + 2I(a;c|b,d)-7*[a;b;c;d]\n");
+"     macro add T(X;Y|Z1;Z2) = 3I(Z1,X;Y|Z2)+2I(X;Y,Z2|Z1)+H(X,Y|Z1,Z2)\n"
+"     macro add T(a|b|c;d) = -H(a|b,c) + 2I(a;c|b,d)-7*[a;b;c;d]\n");
         printf(
-"Only variables in the argument list can be used in the right hand side\n"
-"expression. Macros in the expression are expanded, so should be defined\n"
-"earlier. When invoking a macro, each argument can be either a =>variable\n"
-"or a variable list; the separators must match those in the definition. Thus\n");
+" Only variables in the argument list can be used in the right hand side\n"
+" expression. Macros in the expression are expanded, so should be defined\n"
+" earlier. When invoking a macro, each argument can be either a =>variable\n"
+" or a variable list; the separators must match those in the definition. Thus\n");
        if(minitip_style==syntax_short) printf(
-"      3*T(ac%1$cad|bc%1$cbd) -4T(xu|yu|t%1$cu)\n",minitip_sepchar);
+"     3*T(ac%1$cad|bc%1$cbd) -4T(xu|yu|t%1$cu)\n",minitip_sepchar);
        else printf(
-"      3*T(A,C;A,D|B,C;B,D) - 4T(X1,Z2|X2,Z2|Y1;Y2,Z2)\n");
+"     3*T(A,C;A,D|B,C;B,D) - 4T(X1,Z2|X2,Z2|Y1;Y2,Z2)\n");
        printf(
-"expands the first and the second definition, respectively. Macros are\n"
-"stored and printed out in raw format using entropies only.\n"
+" expands the first and the second definition, respectively. Macros are\n"
+" stored and printed out in raw format using entropies only.\n"
 "\n"
-"Use 'macro add', 'macro list', 'macro delete' to add, list, or delete\n"
-"macros. The 'add' keyword can be omitted.\n");
+" Use 'macro add', 'macro list', 'macro delete' to add, list, or delete\n"
+" macros. The 'add' keyword can be omitted.\n");
        return 0;
     }
 /** EXPRESSION **/
     if(strncasecmp(argv,"expr",3)==0){ // linear combination
         printf(
-"An EXPRESSION is a linear combination of =>entropy terms and =>macro\n"
-"invocations, such as\n");
+" An entropy EXPRESSION is a linear combination of =>entropy terms\n"
+" and =>macro invocations, such as\n");
         if(minitip_style==syntax_short) printf(
-"      -1.234*{ (x|y) - 12.345(a%1$cb|h)} + 3X(x%1$cb|ay)\nwhere X(%1$c|)",minitip_sepchar);
+"     -1.234*{ (x|y) - 12.345(a%1$cb|h)} + 3X(x%1$cb|ay)\n where X(%1$c|)",minitip_sepchar);
         else printf(
-"       -1.234*{ H(X|Y) - 12.345I(a;b|H)} + 3X(X;b|a,Y)\nwhere X(;|)");
+"     -1.234*{ H(X|Y) - 12.345I(a;b|H)} + 3X(X;b|a,Y)\n where X(;|)");
         printf(
-" is a macro. Spaces and the * sign between the constant\n"
-"and the entropy term are optional. For grouping use the curly\n"
-"braces '{' and '}' as above.\n");
+" is a macro. Spaces and the * sign right after the\n"
+" constant are optional. For grouping use the curly braces '{' and\n"
+" '}' as in the example above.\n");
         return 0;
     }
 /** RELATION **/
     if(strncasecmp(argv,"relation",3)==0){ //formula description
         printf(
-"A RELATION compares two entropy =>expressions using = (equal),\n"
-"<= (less or equal) or >= (greater or equal) as in\n");
+" A RELATION compares two entropy =>expressions using = (equal),\n"
+" <= (less than or equal) or >= (greater than or equal) as in\n");
         if(minitip_style==syntax_short) printf(
 // simple style
-"       I(x%1$cy) +3H(a)-1.234* I(x%1$ca|z) >= 0\n"
-"       -1.234*(x|y) - 12.234*(a%1$cb|h) <= -2bxy\n"
-"       (b%1$cd|a'c)+(b%1$cc|a') = (b%1$ccd|a')\n",minitip_sepchar);
+".     I(x%1$cy) +3H(a)-1.234* I(x%1$ca|z) >= 0\n"
+".     -1.234*(x|y) - 12.234*(a%1$cb|h) <= -2bxy\n"
+".     (b%1$cd|a'c)+(b%1$cc|a') = (b%1$ccd|a')\n",minitip_sepchar);
         else printf(
 // full style
-"       I(X;Y)+3 H(A) -1.234 I(X;A|Z) >= 0\n"
-"       +1.234*H(X|Y) - 12.234*I(A;B|H) <= -2H(B,X,Y)\n"
-"       I(X;Y1|Z,Y2)+I(X;Y2|Z) = I(X;Y1,Y2|Z)\n");
+".     I(X;Y)+3 H(A) -1.234 I(X;A|Z) >= 0\n"
+".     +1.234*H(X|Y) - 12.234*I(A;B|H) <= -2H(B,X,Y)\n"
+".     I(X;Y1|Z,Y2)+I(X;Y2|Z) = I(X;Y1,Y2|Z)\n");
         printf(
-"Only these three comparison operators can be used. Any side (but not\n"
-"both) can be zero as in the first example.\n"
-"An entropy relation can be checked for validity either with or without\n"
-"constraints; and can be added as a =>constraint. Use 'check' or 'test'\n"
-"for checking with constraints, 'xcheck' for checking without constraints;\n"
-"and 'add' to add it as a constraint. Keywords 'check' and 'test' can be\n"
-"omitted if the first character of the relation is not a letter.\n");
+" Only these three comparison operators can be used. Any side (but not\n"
+" both) can be zero as in the first example.\n"
+" An entropy relation can be checked for validity either with or without\n"
+" constraints; or can be added as a =>constraint. Use 'check' or 'test'\n"
+" for checking with constraints, 'xcheck' for checking without constraints;\n"
+" 'add' to add it as a constraint. Keywords 'check' and 'test' can be\n"
+" omitted if the first character of the line is not a letter.\n");
         return 0;
     }
 /** CONSTRAINT **/
-    if(strncasecmp(argv,"const",3)==0){ // constraint
+    if(strncasecmp(argv,"const",4)==0){ // constraint
         printf(
-"When checking the validity of an entropy =>relation, it is done relative\n"
-"to a set of CONSTRAINTS. A constraint is one of the following:\n"
-"*  a =>relation, that is two entropy =>expressions compared by one of\n"
-"     =, <= or >=0\n"
-"*  functional dependency: the first =>variable list is determined by the\n"
+" When checking the validity of an entropy =>relation, it is done relative\n"
+" to a set of CONSTRAINTS. A constraint is one of the following:\n"
+".  a =>relation, that is two entropy =>expressions compared by one of\n"
+"   the comparison relations  =, <= or >=\n"
+".  functional dependency: the first =>variable list is determined by the\n"
 "   second one:\n"
 "         varlist1 :  varlist2\n"
 "     or  varlist1 << varlist2\n"
-"*  independence: the =>variable lists are totally independent:\n"
+".  independence: the =>variable lists are totally independent:\n"
 "         varlist1 .  varlist2 .  varlist3 .  ...\n"
 "     or  varlist1 || varlist2 || varlist3 || ...\n"
-"*  Markov chain: the =>variable lists form a Markov chain:\n"
+".  Markov chain: the =>variable lists form a Markov chain:\n"
 "         varlist1 /  varlist2 /  varlist3 /  ...\n"
 "     or  varlist1 -> varlist2 -> varlist3 -> ...\n"
-"Use the command 'add' to add a constraint; 'list' to list them; and\n"
-"'del' to remove some or all of the constraints.\n");
+" Use the command 'add' to add a constraint; 'list' to list them; and\n"
+" 'del' to remove some or all of the constraints.\n");
         return 0;
     }
 /** UNROLL **/
     if(strncmp(argv,"unroll",3)==0){ // unroll
         printf(
-"Calculate the missing terms on the right hand side of two =>expressions\n"
-"connected by '=='. Leave the right hand side empty to print the formula as\n"
-"a composition of entropies. Example:\n");
+" Calculate the missing terms on the right hand side of two =>expressions\n"
+" connected by '=='. Leave the right hand side empty to print the formula\n"
+" as a composition of entropies. Example:\n");
         if(minitip_style==syntax_short) printf(
 // simple style
 "        unroll (a%1$cb|c)+(b%1$cc|a)+(c%1$ca|b) ==\n"
-"Result:\n"
+" Result:\n"
 "         ==> -a-b-c+2ab+2ac+2bc-3abc\n",minitip_sepchar);
         else printf(
 // full style
 "        unroll I(A;B|C)+I(B;C|A)+I(C;A|B) =='\n"
-"Result:\n"
+" Result:\n"
 "         ==> -H(A)-H(B)-H(C)+2H(A,B)+2H(A,C)+2H(B,C)-3H(A,B,C)\n");
         printf(
-"Similarly to the 'check' and 'test' keywords, 'unroll' can be omitted if\n"
-"the first character of the expression is not a letter.\n");
+" Similarly to the 'check' and 'test' keywords, 'unroll' can be omitted if\n"
+" the first character of the expression is not a letter.\n");
+        return 0;
+    }
+/* CONVERT */
+    if(strncmp(argv,"convert",3)==0){ // convert
+        printf(
+" The entropy =>expression is converted using (extended) measures, or\n"
+" natural coordinates. The expression can optionally be preceeded by a\n"
+" list of =>variables determining the coordinates. The variable list and\n"
+" the expression is separated by a '/' character. Natural coordinates\n"
+" require exactly four variables. Example:\n");
+        if(minitip_style==syntax_short) printf(
+// simple style
+"        nat u%1$cv%1$cx%1$cy / [v%1$cx%1$cu%1$cy]+uvx\n",minitip_sepchar);
+        else printf(
+// full style
+"        nat U;V;X;Y / [V;X;U;Y]+H(U,V,X)\n");
+        printf(
+" If the variable list is omitted, variables are extracted from the\n"
+" expression left to right. In the above example omitting the variable\n"
+" list yields the (different) natural coordinate system determined by\n"
+" the variables");
+        if(minitip_style==syntax_short) printf(
+" v,x,u,y.\n"
+" Natural coordinates for variables a,b,c,d (in this order) are\n"
+"        [a%1$cb%1$cc%1$cd]\n"
+"        (a%1$cb|c), (a%1$cb|d), (a%1$cc|b), (b%1$cc|a), (a%1$cd|b), (b%1$cd|a)\n"
+"        (c%1$cd|a), (c%1$cd|b), (c%1$cd), (a%1$cb|cd)\n"
+"        (a|bcd), (b|acd), (c|abd), (d|abc)\n",minitip_sepchar);
+        else printf(
+" V,X,U,Y.\n"
+" Natural coordinates for variables A,B,C,D (in this order) are\n"
+"        [A;B;C;D]\n"
+"        I(A;B|c), I(A;B|D), I(A;C|B), I(B;C|A), I(A;D|B), I(B;D|A)\n"
+"        I(A;B|C), I(A;B|D), I(C;D), I(A;B|C,D)\n"
+"        H(A|B,C,D). H(B|A,C,D), H(C|A,B,D), H(D|B,C,D)\n");
         return 0;
     }
     if(!line) /* only if online */
@@ -876,17 +918,19 @@ static int com_syntax(const char *argv, const char *line)
 "  expression -- linear combination of entropy terms and macros\n"
 "  relation   -- compare two expressions by =, <= or >=\n"
 "  constraint -- syntax of constraints\n"
-"  unroll     -- calculate the missing terms on the right hand side\n");
+"  unroll     -- calculate the missing terms on the right hand side\n"
+"  convert    -- show expression using measures or natural coords\n");
     return 0; /* OK */
 }
 /** ADD  -- add a constraint **/
 static int com_add(const char* line,const char *orig)
 {int i;
     if(*line==0 || *line=='?' || strncmp(line,"help",4)==0){ // empty line, help
-        if(!orig) printf(" Add a new constraint, which can be\n"
-        " *  an equality or inequality comparing two entropy expressions; or\n"
-        " *  functional dependency; total independence; Markov chain.\n"
-        " Enter 'syntax constraint' for more help.\n" );
+        if(!orig) printf(
+" Add a new constraint, which can be an equality or inequality\n"
+" comparing two entropy expressions; functional dependency;\n"
+" total independence; or Markov chain.\n"
+" Enter 'syntax constraint' for a detailed descripition.\n" );
         return 0;
     }
     // check if it is there ...
@@ -939,9 +983,10 @@ static int com_list(const char *arg, const char *orig)
     if(*arg=='?' || strcmp(arg,"help")==0){ // help
         if(constraint_no==0) printf(" There are no constraints to be listed.\n");
         else printf(" The number of constraints is %d\n",constraint_no);
-        printf(" Use 'list all' to show all; 'list -10' to show the first 10 constraints.\n"
-               " In general, 'list 3,4-6,8' shows constraints #3,#4 to #6, and #8. Enter\n"
-               " 'syntax constraint' for help on constraints.\n");
+        printf(
+" Use 'list all' to show all; 'list -10' to show the first 10 constraints.\n"
+" In general, 'list 3,4-6,8' shows constraints #3,#4 to #6, and #8. Enter\n"
+" 'syntax constraint' for help on constraints.\n");
         return 0;
     }
     if(constraint_no==0){
@@ -1010,7 +1055,7 @@ static int com_del(const char *arg, const char *line)
         if(!line)
         printf(
 " Specify the constraint to be deleted from 1 to %d, or say 'del all'.\n"
-" Enter 'syntax constraint' for help on constraints.\n",  constraint_no);
+" Enter 'syntax constraint' for help on constraints.\n",constraint_no);
         return 0; /* OK */
     }
     if(strcmp(arg,"all")==0){
@@ -1099,16 +1144,20 @@ static int com_style(const char *argv, const char *line)
                    minitip_sepchar);
         return 0; /* OK */
     }
-    if(line && strcasecmp(argv,"help")!=0) return 1; /* abort */
-    if(minitip_style==syntax_short) printf(
+    if(!*argv || *argv=='?' || strcmp(argv,"help")==0){
+       if(!line) {
+        if(minitip_style==syntax_short) printf(
 " The present style is SIMPLE using '%c' as separator.\n",minitip_sepchar);
-    else printf(
+        else printf(
 " The present style is FULL (standard).\n");
-    printf(
+        printf(
 " Enter 'style full' to set the style to FULL (standard), or 'style simple'\n"
 " followed by the character to be used as separator (default: ',') to set\n"
 " the style to SIMPLE (lazy). Enter 'syntax style' for more help.\n");
-    return 0; /* OK */
+       }
+       return 0; /* OK */
+    }
+    return 1; /* abort */
 }
 
 /** MACRO -- manipulate macros **/
@@ -1287,6 +1336,11 @@ static int com_macro(const char *arg, const char* line)
        } else {
            return com_macro_list(arg,line);
        }
+    }
+    if(*arg=='?' || strncmp(arg,"help",4)==0){ // help
+       if(!line) printf(
+" add, list, or delete macros. For more help, type 'syntax macro'.\n");
+       return 0;
     }
     cmd=-1;
     for(j=0;cmd<0 && macro_commands[j].name;j++){
@@ -1529,8 +1583,9 @@ static int com_dump(const char *arg, const char *line)
 {FILE *dump_file; char *filename; const char *errmsg; int idx;
     if(!*arg || *arg=='?' || strcmp(arg,"help")==0){
        if(!line) printf(
-       " type 'dump <file>' to save constraints and macro definitions\n"
-       " These can be reloaded by the 'run <file>' command\n");
+" Type 'dump <file>' to get an editable list of the actual\n"
+" constraints and macro definitions. They can be reloaded by\n"
+" executing the command 'run <file>'\n");
        return 0;
     }
     if(line) printf("%s\n",line);
@@ -1707,6 +1762,40 @@ static int com_diff(const char *line, const char *orig)
     return 0; /* OK */
 }
 
+/** CONVERT -- convert to extended measures or natural coordinates **/
+static int com_ext(const char *line, const char *orig)
+{   if(in_minitiprc) return 0;
+    if(!*line || *line=='?' || strcmp(line,"help")==0){
+        if(!orig)
+            printf(" Convert the entropy expression using extended measures.\n"
+                   " Enter 'syntax convert' for more help.\n");
+        return 0;
+    }
+    if(parse_conv(line,0)!=PARSE_OK){ /* some error */
+        error_message(orig);
+        return 1;
+    }
+    if(orig)printf("%s\n",orig);
+    printf(" ==> "); print_in_measures(); printf("\n");
+    return 0; /* OK */
+}
+static int com_nat(const char *line, const char *orig)
+{   if(in_minitiprc) return 0;
+    if(!*line || *line=='?' || strcmp(line,"help")==0){
+        if(!orig)
+            printf(" Convert the entropy expression using natural coordinates.\n"
+                   " Enter 'syntax convert' for more help.\n");
+        return 0;
+    }
+    if(parse_conv(line,4)!=PARSE_OK){ /* some error */
+        error_message(orig);
+        return 1;
+    }
+    if(orig)printf("%s\n",orig);
+    printf(" ==> "); print_in_natural_coords(); printf("\n");
+    return 0; /* OK */
+
+}
 /***********************************************************************
 * Interface to the LP solver
 *

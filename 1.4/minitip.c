@@ -14,11 +14,11 @@
 /* Version and copyright */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	4
-#define VERSION_SUB	6
+#define VERSION_SUB	7
 #define VERSION_STRING	mkstringof(VERSION_MAJOR.VERSION_MINOR.VERSION_SUB)
 
 #define COPYRIGHT	\
-"Copyright (C) 2016-2019 Laszlo Csirmaz, Central European University, Budapest"
+"Copyright (C) 2016-2021 Laszlo Csirmaz, Central European University, Budapest"
 
 /*----------------------------------------------------------------------------*/
 
@@ -32,7 +32,7 @@
 
 /* forward declarations */
 static void check_expression(const char *src, int with_constraints);
-extern int yesno(void);
+extern int yesno(int);
 static int get_param(const char *str);
 static void set_param(const char *str,int value);
 #define UNUSED __attribute__((unused)) 
@@ -504,14 +504,14 @@ static int execute_cmd(char *text,const char *line)
     }
     if(('a'<=text[i]&& text[i]<='z')||('A'<=text[i]&&text[i]<='Z')){
         if(line)printf("%s\n",line);
-        printf(" Unknown command; use 'help' to get a list of commands\n");
+        printf(" Unknown command; enter '?' for a list of commands\n");
         return 1;
     }
     // if no = sign, do nothing ...
     for(j=i;text[j] && text[j]!='='; j++);
     if(text[j]!='='){
         if(line)printf("%s\n",line);
-        printf(" Unknown command; use 'help' to get a list of commands\n");
+        printf(" Unknown command; enter '?' for a list of commands\n");
         return 1;
     }
     cmdarg_position=i;
@@ -634,17 +634,15 @@ static int com_help(const char *arg, const char *line)
 /** QUIT -- quit minitip **/
 static int com_quit(const char *arg, const char *line)
 {   if(line){ done=1; return 0; } /* batch */
-    if(*arg==0){int c;
-        if(get_param("save")==1){ c='y'; }
-        else if(get_param("save")==2){ c='n'; }
-        else { // ask
+    if(*arg==0){ int c; 
+        if(get_param("save")==1){ c=1; }
+        else if(get_param("save")==2){ c=0; }
+        else { // ask yes/no
           printf("Save commands to the history file %s (y/n)? ",HISTORY_FILE);
-          c=yesno(); while(c!='y' && c!='n' && c!='Y' && c!='N'){
-            printf("             please hit 'y' or 'n' (y/n)? ");
-            c=yesno(); }
+          c=yesno(1);
         }
        done=1;
-       if(c=='y'||c=='Y') write_history(HISTORY_FILE);
+       if(c!=0) write_history(HISTORY_FILE);
     }
     else printf(" No arguments are accepted.\n");
     return 0; /* OK */
@@ -1059,12 +1057,12 @@ static int com_del(const char *arg, const char *line)
         return 0; /* OK */
     }
     if(strcmp(arg,"all")==0){
-        int c='y';
+        int c=1;
         if(!line){
            printf(" All constraints (%d) will be deleted. Proceed (y/n)? ",constraint_no);
-           c=yesno();
+           c=yesno(0);
         }
-        if(c=='y'||c=='Y'){
+        if(c!=0){
            for(no=0;no<constraint_no;no++) free(constraint_table[no]);
            constraint_no=0;
         }
@@ -1101,7 +1099,7 @@ static int com_style(const char *argv, const char *line)
             }
             printf(" Changing style will delete all constraints (%d). Proceed (y/n)? ",
               constraint_no);
-            int c=yesno(); if(c!='y' && c!='Y') return 1;
+            if(yesno(0)==0) return 1;
             while(constraint_no>0){
                 constraint_no--; free(constraint_table[constraint_no]);
             }
@@ -1132,7 +1130,7 @@ static int com_style(const char *argv, const char *line)
             }
             printf(" Changing style will delete all constraints (%d). Proceed (y/n)? ",
               constraint_no);
-            int c=yesno(); if(c!='y' && c!='Y') return 1;
+            if(yesno(0)==0) return 1;
             while(constraint_no>0){
                 constraint_no--; free(constraint_table[constraint_no]);
             }
@@ -1559,14 +1557,12 @@ static int com_save(const char *arg, const char *line)
     }
     if(line) printf("%s\n",line);
     while(*arg==' '|| *arg=='\t') arg++;
-    if(*arg==0){int c;
+    if(*arg==0){
         filename = HISTORY_FILE;
         if(!line){
           printf("Save command history to %s (y/n)? ",filename);
-          c=yesno(); while(c!='y' && c!='n' && c!='Y' && c!='N'){
-            printf("              please hit 'y' or 'n' (y/n)? ");
-            c=yesno(); }
-          if(c=='n'||c=='N') return 0;
+          if(yesno(1)==0) return 0;
+          filename = strdup(HISTORY_FILE);
         }
     } else if(!(filename=prepare_filename(arg))){
        printf(" ERROR: wrong filename syntax\n");
@@ -1951,7 +1947,7 @@ static void initialize_random(void)
 static void extract_randomness(const char *from)
 {int i=0x1234;
     for(i=0x1234;*from;from++){
-        i=((i*7)+(unsigned char)(*from))&0xffff;
+        i=((i*7)+(unsigned char)(*from))&0xffffff;
     }
     i%=1003;
     while(i){random();i--; }
@@ -2154,7 +2150,9 @@ int main(int argc, char *argv[])
     initialize_readline();
     for(done=0;!done;){
         line=readline(minitip_PROMPT);
-        if(!line) break;
+        if(!line){ /* ^D at the beginning of line */
+            printf("\n"); continue;
+        }
         extract_randomness(line);
         execute_cmd(line,NULL);
         store_if_not_new(line);

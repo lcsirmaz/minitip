@@ -12,37 +12,65 @@
 *************************************************************************/
 
 
-#include <termios.h>
-#include <stdio.h>
+#include <readline/readline.h>
+#include <stdlib.h>
+//#include <stdio.h>
 #include <unistd.h>
 
 /***********************************************************************
 * Reading a single y/n answer from the terminal
 *
-*  int yesno(void)
-*    read a single character from the terminal and return it.
+*  int yesno(int force)
+*    read a yes/no answer  If force!=0 insist on getting one of them
+*  return value: 1 - yes; 0 - no.
 */
 
-static void set_mode(int getkey)
-{static struct termios old,new;
-    if(!getkey){
-       tcsetattr(STDIN_FILENO,TCSANOW,&old);
-       return;
+#define UNUSED __attribute__((unused))
+
+/* readline completion for yes/no */
+static char* yn_comp(const char *txt, int state)
+{static int list_index=0; const char *name;
+ static const char *yn[]={"yes","no",NULL};
+    if(!state){ list_index=0; }
+    while((name=yn[list_index])!=NULL){
+       list_index++;
+       if(strncasecmp(name,txt,strlen(txt))==0){
+          return strdup(name);
+       }
     }
-    tcgetattr(STDIN_FILENO,&old);
-    new=old;
-    new.c_lflag &= ~(ICANON);
-    tcsetattr(STDIN_FILENO,TCSANOW,&new);
+    return (char*)NULL;
+}
+/* readline completion procedure */
+static char **yesno_completion(const char *text, int start, UNUSED int end)
+{char **matches=NULL;
+  rl_attempted_completion_over=1; /* no filename extension */
+  if(start==0){ matches=rl_completion_matches(text,yn_comp); }
+  return matches;
 }
 
-int yesno(void)
-{int c;
-    set_mode(1);
-    fflush(stdout);
-    while((c=getchar())<0);
-    set_mode(0);
-    printf("\n");
-    return c;
+
+int yesno(int force)
+{rl_completion_func_t *ocomp;
+ int prompted;
+ char *line; int res=-1;
+    ocomp=rl_attempted_completion_function;
+    rl_attempted_completion_function=yesno_completion;
+    prompted=rl_already_prompted; rl_already_prompted=1;
+    while(res<0){
+        line=readline("Please enter 'y' or 'n' (y/n)? ");
+        if(!line){printf("\n"); continue;}
+        if(strlen(line)<5){
+           if(line[0]=='y'||line[0]=='Y'){ res=1; }
+           else if(line[0]=='n'||line[0]=='N'){ res=0; }
+           else if(force==0){
+              res=0; printf(" no\n");
+           }
+        }
+        free(line); rl_already_prompted=prompted;
+    }
+    rl_already_prompted=prompted;
+    rl_attempted_completion_function=ocomp;
+    return res;
 }
 
 /* EOF */

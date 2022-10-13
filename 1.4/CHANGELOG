@@ -1,3 +1,7 @@
+1.4.7
+Handle yes/no answers by readline (need to hit enter)
+bugfix: save command without arguments give double free()
+
 1.4.6
 add conversion commands "ext" and "nat" to convert an expression
 to I-measures, and natural coordinates, respectively. Tidy up

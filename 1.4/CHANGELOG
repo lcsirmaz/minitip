@@ -1,5 +1,5 @@
 1.4.7
-Handle yes/no answers by readline (need to hit enter)
+Handle yes/no answers by readline (need to hit enter) - corrected
 bugfix: save command without arguments give double free()
 
 1.4.6

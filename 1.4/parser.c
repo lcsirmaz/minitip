@@ -153,7 +153,7 @@ inline static void adjust_error_position(int d)
 *   multiple times, so the first message is kept.
 */
 static char* e_FUNCTIONOF(int i){
-static char buf1[80],buf2[10]; char *txt;
+static char buf1[90],buf2[15]; char *txt;
     if(syntax_error.harderrstr) return "-";
     switch(i){
         case 0: txt="first"; break;

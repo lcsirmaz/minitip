@@ -14,7 +14,7 @@
 
 #include <readline/readline.h>
 #include <stdlib.h>
-//#include <stdio.h>
+#include <stdarg.h>
 #include <unistd.h>
 
 /***********************************************************************
@@ -48,16 +48,18 @@ static char **yesno_completion(const char *text, int start, UNUSED int end)
   return matches;
 }
 
-
-int yesno(int force)
+/* first prompt: argument, next: enter y/n */
+int yesno(int force,const char *fmt, ...)
 {rl_completion_func_t *ocomp;
- int prompted;
- char *line; int res=-1;
+ char *line; int res=-1; char buff[100]; va_list ap;
+ char *prompt;
+    va_start(ap,fmt); vsnprintf(buff,90,fmt,ap); va_end(ap);
+    strcat(buff," (y/n)? "); prompt=&buff[0];
     ocomp=rl_attempted_completion_function;
     rl_attempted_completion_function=yesno_completion;
-    prompted=rl_already_prompted; rl_already_prompted=1;
     while(res<0){
-        line=readline("Please enter 'y' or 'n' (y/n)? ");
+        line=readline(prompt);
+        prompt="Please enter 'y' or 'n' (y/n)? ";
         if(!line){printf("\n"); continue;}
         if(strlen(line)<5){
            if(line[0]=='y'||line[0]=='Y'){ res=1; }
@@ -66,9 +68,8 @@ int yesno(int force)
               res=0; printf(" no\n");
            }
         }
-        free(line); rl_already_prompted=prompted;
+        free(line);
     }
-    rl_already_prompted=prompted;
     rl_attempted_completion_function=ocomp;
     return res;
 }

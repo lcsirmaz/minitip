@@ -1,3 +1,7 @@
+1.4.71
+Modifying the yes/no logic: readline requires the exact prompt
+(from readline version 8.1)
+
 1.4.7
 Handle yes/no answers by readline (need to hit enter)
 bugfix: save command without arguments give double free()

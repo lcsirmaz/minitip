@@ -14,11 +14,11 @@
 /* Version and copyright */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	4
-#define VERSION_SUB	7
+#define VERSION_SUB	71
 #define VERSION_STRING	mkstringof(VERSION_MAJOR.VERSION_MINOR.VERSION_SUB)
 
 #define COPYRIGHT	\
-"Copyright (C) 2016-2021 Laszlo Csirmaz, Central European University, Budapest"
+"Copyright (C) 2016-2022 Laszlo Csirmaz, Central European University, Budapest"
 
 /*----------------------------------------------------------------------------*/
 
@@ -32,7 +32,7 @@
 
 /* forward declarations */
 static void check_expression(const char *src, int with_constraints);
-extern int yesno(int);
+extern int yesno(int,const char *fmt, ...);
 static int get_param(const char *str);
 static void set_param(const char *str,int value);
 #define UNUSED __attribute__((unused)) 
@@ -638,8 +638,7 @@ static int com_quit(const char *arg, const char *line)
         if(get_param("save")==1){ c=1; }
         else if(get_param("save")==2){ c=0; }
         else { // ask yes/no
-          printf("Save commands to the history file %s (y/n)? ",HISTORY_FILE);
-          c=yesno(1);
+          c=yesno(1,"Save commands to the history file %s (y/n)? ",HISTORY_FILE);
         }
        done=1;
        if(c!=0) write_history(HISTORY_FILE);
@@ -1059,8 +1058,7 @@ static int com_del(const char *arg, const char *line)
     if(strcmp(arg,"all")==0){
         int c=1;
         if(!line){
-           printf(" All constraints (%d) will be deleted. Proceed (y/n)? ",constraint_no);
-           c=yesno(0);
+           c=yesno(0," All constraints (%d) will be deleted. Proceed (y/n)? ",constraint_no);
         }
         if(c!=0){
            for(no=0;no<constraint_no;no++) free(constraint_table[no]);
@@ -1097,9 +1095,8 @@ static int com_style(const char *argv, const char *line)
                 printf(" Cannot change style to FULL when there are constraints.\n");
                 return 2; /* abort */
             }
-            printf(" Changing style will delete all constraints (%d). Proceed (y/n)? ",
-              constraint_no);
-            if(yesno(0)==0) return 1;
+            if(yesno(0," Changing style will delete all constraints (%d). Proceed (y/n)? ",
+                constraint_no)==0) return 1;
             while(constraint_no>0){
                 constraint_no--; free(constraint_table[constraint_no]);
             }
@@ -1128,9 +1125,8 @@ static int com_style(const char *argv, const char *line)
                 printf(" Cannot change style to SIMPLE when there are constraints.\n");
                 return 2; /* abort */
             }
-            printf(" Changing style will delete all constraints (%d). Proceed (y/n)? ",
-              constraint_no);
-            if(yesno(0)==0) return 1;
+            if(yesno(0," Changing style will delete all constraints (%d). Proceed (y/n)? ",
+                constraint_no)==0) return 1;
             while(constraint_no>0){
                 constraint_no--; free(constraint_table[constraint_no]);
             }
@@ -1560,8 +1556,7 @@ static int com_save(const char *arg, const char *line)
     if(*arg==0){
         filename = HISTORY_FILE;
         if(!line){
-          printf("Save command history to %s (y/n)? ",filename);
-          if(yesno(1)==0) return 0;
+          if(yesno(1,"Save command history to %s (y/n)? ",filename)==0) return 0;
           filename = strdup(HISTORY_FILE);
         }
     } else if(!(filename=prepare_filename(arg))){

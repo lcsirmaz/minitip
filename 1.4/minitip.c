@@ -3,7 +3,7 @@
 /***********************************************************************
  * This code is part of MINITIP (a MINimal Information Theoretic Prover)
  *
- * Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
+ * Copyright (2016-2024) Laszlo Csirmaz, github.com/lcsirmaz/minitip
  *
  * This program is free, open-source software. You may redistribute it
  * and/or modify under the terms of the GNU General Public License (GPL).
@@ -14,11 +14,11 @@
 /* Version and copyright */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	4
-#define VERSION_SUB	71
+#define VERSION_SUB	8
 #define VERSION_STRING	mkstringof(VERSION_MAJOR.VERSION_MINOR.VERSION_SUB)
 
 #define COPYRIGHT	\
-"Copyright (C) 2016-2022 Laszlo Csirmaz, Central European University, Budapest"
+"Copyright (C) 2016-2024 Laszlo Csirmaz, https://github.com/minitip"
 
 /*----------------------------------------------------------------------------*/
 
@@ -186,6 +186,9 @@ static int read_batch_line(FILE *f)
      case '\b':   if(pos>0) pos--; break;
      case '\n':   batch_line[pos]=0; return 0;
      case '\t':   c=' '; /* and fall through */
+#ifdef __GNUC__
+                  __attribute__((fallthrough));
+#endif
      default:     batch_line[pos]=c; 
                   if(pos<minitip_MAX_LINE_LENGTH) pos++;
                   else return 1; /* too long line */
@@ -290,12 +293,12 @@ static COMMAND commands[] = {
 {"check",  com_check, 0, pm_help,   NULL,	"check entropy relation with constraints" },
 {"test",   com_check, 0, pm_help,   NULL,	"synonym for 'check'" },
 {"xcheck", com_nocon, 0, pm_help,   NULL,	"check entropy relation without constraints" },
-{"add",	   com_add,   0, pm_help,   NULL,	"add new constraint" },
-{"list",   com_list,  0, pm_list,   NULL,	"list all or specified constraints: 3,5-7"},
-{"del",	   com_del,   0, pm_help,   NULL,	"delete numbered constraint"},
-{"unroll", com_diff,  0, pm_help,   NULL,	"print missing entropy terms on RHS"},
-{"ext",    com_ext,   0, pm_help,   NULL,	"convert to extended information measures"},
-{"nat",    com_nat,   0, pm_help,   NULL,	"convert to natural coordinates"},
+{"add",	   com_add,   0, pm_help,   NULL,	"add a constraint, see 'syntax constraint'" },
+{"list",   com_list,  0, pm_list,   NULL,	"list specified constraints, see 'list help'"},
+{"del",	   com_del,   0, pm_help,   NULL,	"delete specified constraints, see 'del help'"},
+{"unroll", com_diff,  0, pm_help,   NULL,	"calculate missing entropy terms"},
+{"ext",    com_ext,   0, pm_help,   NULL,	"convert to information measures; see 'syntax ext'"},
+{"nat",    com_nat,   0, pm_help,   NULL,	"convert to natural coordinates, see 'syntax nat'"},
 {"macro",  com_macro, 0, pm_macro,  NULL,	"add, list, delete macros"},
 {"run",    com_batch, 1, NULL,      NULL,	"execute commands from a file"},
 {"style",  com_style, 0, pm_style,  NULL,	"show / change formula style"},
@@ -353,7 +356,7 @@ static char *pm_syntax(const char *txt, int state)
 {static int list_index=0; const char *name;
  static const char *syntaxargs[]={
   "style","variable","entropy","expression","measure","relation",
-  "constraint","macro","unroll","convert",NULL };
+  "constraint","macro","unroll","convert","ext","nat",NULL };
     if(!state){ list_index=0; }
     while((name=syntaxargs[list_index])!=NULL){
         list_index++;
@@ -650,7 +653,7 @@ static int com_quit(const char *arg, const char *line)
 /** SYNTAX  -- give help on syntax of different constructs **/
 static int com_syntax(const char *argv, const char *line)
 /** style / variable / entropy / expression / relation / constraint / 
-    macro / unroll / measure / convert **/
+    macro / unroll / measure / convert / ext / nat **/
 {
 /** STYLE **/
     if(strncasecmp(argv,"style",3)==0){ // on style
@@ -732,7 +735,7 @@ static int com_syntax(const char *argv, const char *line)
         return 0;
     }
 /** MEASURES **/
-    if(strncasecmp(argv,"measure",4)==0){ // measure
+    if(strncasecmp(argv,"measure",4)==0 || strncmp(argv,"ext",3)==0){ // measure
         printf(
 " Next to the usual Shannon entropy measures, extended (unconditional\n"
 " and conditional) information measures are recognized as well:\n");
@@ -750,7 +753,9 @@ static int com_syntax(const char *argv, const char *line)
 ".  I(A;B;C;D|X) for I(A;B;C|X)-I(A;B;C|D,X), etc,\n");
         printf(
 " up to depth " mkstringof(minitip_MAX_MEASURE_DEPTH) ".\n"
-" To disable this feature enter 'set measure=false'.\n");
+" To disable this feature enter 'set measure=false'.\n"
+" To convert an expression using extended measures use the syntax\n"
+"   ext <expression>\n");
         return 0;
     }
 /** MACRO **/
@@ -870,13 +875,12 @@ static int com_syntax(const char *argv, const char *line)
         return 0;
     }
 /* CONVERT */
-    if(strncmp(argv,"convert",3)==0){ // convert
+    if(strncmp(argv,"convert",3)==0 || strncmp(argv,"nat",3)==0){ // convert
         printf(
-" The entropy =>expression is converted using (extended) information\n"
-" measures, or natural coordinates. The expression can optionally be\n"
-" preceeded by a list of =>variables determining the coordinates. The\n"
-" variable list and the expression is separated by a '/' character.\n"
-" Natural coordinates require exactly four variables. Example:\n");
+" The entropy =>expression is converted using natural coordinates. The\n"
+" expression can optionally be preceeded by a list of =>variables determining\n"
+" the coordinates. The variable list and the expression is separated by a\n"
+" '/' character. Natural coordinates require exactly four variables. Example:\n");
         if(minitip_style==syntax_short) printf(
 // simple style
 "        nat u%1$cv%1$cx%1$cy / [v%1$cx%1$cu%1$cy]+uvx\n",minitip_sepchar);
@@ -910,13 +914,13 @@ static int com_syntax(const char *argv, const char *line)
 "  style      -- choose between \"simple\" and \"full\" style\n"
 "  variables  -- random variables and sequences of random variables\n"
 "  entropy    -- entropy term syntax and shorthand\n"
-"  measure    -- extended entropy measures\n"
 "  macro      -- macros, what they are\n"
 "  expression -- linear combination of entropy terms and macros\n"
 "  relation   -- compare two expressions by =, <= or >=\n"
 "  constraint -- syntax of constraints\n"
-"  unroll     -- calculate the missing terms on the right hand side\n"
-"  convert    -- show expression using measures or natural coords\n");
+"  unroll     -- calculating missing terms\n"
+"  ext        -- convert to extended entropy measures\n"
+"  nat        -- show expression using natural coordinatess\n");
     return 0; /* OK */
 }
 /** ADD  -- add a constraint **/
@@ -1759,7 +1763,7 @@ static int com_ext(const char *line, const char *orig)
     if(!*line || *line=='?' || strcmp(line,"help")==0){
         if(!orig)
             printf(" Convert the entropy expression using extended measures.\n"
-                   " Enter 'syntax convert' for more help.\n");
+                   " Enter 'syntax ext' for more help.\n");
         return 0;
     }
     if(parse_conv(line,0)!=PARSE_OK){ /* some error */
@@ -1775,7 +1779,8 @@ static int com_nat(const char *line, const char *orig)
     if(!*line || *line=='?' || strcmp(line,"help")==0){
         if(!orig)
             printf(" Convert the entropy expression using natural coordinates.\n"
-                   " Enter 'syntax convert' for more help.\n");
+                   " Usage: <base variables> / <expression>\n"
+                   " Enter 'syntax nat' for more help.\n");
         return 0;
     }
     if(parse_conv(line,4)!=PARSE_OK){ /* some error */

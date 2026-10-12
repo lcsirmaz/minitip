@@ -3,7 +3,7 @@
 /***********************************************************************
 * This code is part of MINITIP (a MINimal Information Theoretic Prover)
 *
-* Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
+* Copyright (2016-2024) Laszlo Csirmaz, github.com/lcsirmaz/minitip
 *
 * This program is free, open-source software. You may redistribute it
 * and/or modify under the terms of the GNU General Public License (GPL).
@@ -124,6 +124,12 @@ extern int macro_total;
 *      PARSE_ERR -- some error, syntax_error is filled
 *      PARSE_EQ  -- simplifies to 0=0
 *      PARSE_GE  -- simplifies to 0>=0
+*      PARSE_POS -- TRUE: >= with all coefficients positive
+*    and when there are no constraints (keep==0) and the expression
+*    is a single entropy term:
+*      PARSE_FALSE  -- FALSE: c*H(X)>=0 with c<0
+*      PARSE_ONLYGE -- FALSE: c*H(X)=0 with c>0, only >= is true
+*      PARSE_ONLYLE -- FALSE: c*H(X)=0 with c<0, only <= is true
 *
 * int parse_diff(char *str)
 *    parse str as unroll (==) string. Return value is PARSE_OK or PARSE_ERR,
@@ -146,6 +152,10 @@ extern int macro_total;
 #define PARSE_ERR	1
 #define PARSE_EQ	2	// 0=0
 #define PARSE_GE	3	// 0>=0
+#define PARSE_POS	4	// positive combination >= 0
+#define PARSE_FALSE	5	// single negative term >= 0
+#define PARSE_ONLYGE	6	// single positive term = 0
+#define PARSE_ONLYLE	7	// single negative term = 0
 
 int parse_entropy(const char *str, int keep);
 int parse_diff(const char *str);

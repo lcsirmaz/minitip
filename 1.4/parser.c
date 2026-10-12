@@ -3,7 +3,7 @@
 /***********************************************************************
 * This code is part of MINITIP (a MINimal Information Theoretic Prover)
 *
-* Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
+* Copyright (2016-2024) Laszlo Csirmaz, github.com/lcsirmaz/minitip
 *
 * This program is free, open-source software. You may redistribute it
 * and/or modify under the terms of the GNU General Public License (GPL).
@@ -68,16 +68,8 @@ static void harderr(char *err){
     if(!syntax_error.harderrstr){
       syntax_error.harderrstr=err; syntax_error.harderrpos=X_pos; }
 }
-static void harderr_show(char *err){
-    if(!syntax_error.harderrstr){
-      syntax_error.harderrstr=err; syntax_error.harderrpos=X_pos;
-      syntax_error.showexpression=1;
-    }
-}
 #define must(cond,err)	\
     { if(!(cond)) harderr(err); }
-#define must_show(cond,err)	\
-    { if(!(cond)) harderr_show(err); }
 inline static void adjust_error_position(int d)
 {   syntax_error.softerrpos+=d; syntax_error.harderrpos+=d; }
 
@@ -99,7 +91,7 @@ inline static void adjust_error_position(int d)
 #define e_INGLETONVAR	"in 'Ingleton' expression variable list is expected here"
 #define e_INGLETONSEP	"in 'Ingleton' expression separator is expected here"
 #define e_INGLETONCLOSE	"in 'Ingleton' expression closing ] is missing here"
-#define e_CONDEXPR	"( should be followed by a variable list"
+#define e_CONDEXPR	"( should be followed by a variable list; use { } for grouping"
 #define e_IEXPR2	"variable list is missing after | symbol"
 #define e_CLOSING	"closing parenthesis ')' is expected here"
 #define e_COMMA_OR_BAR	"either a list separator or '|' is expected here"
@@ -126,6 +118,7 @@ inline static void adjust_error_position(int d)
 #define e_COORD_SAMEVAR	"coordinate variables must be different"
 #define e_COORD_ENDVAR	"the list of coordinate variables is closed by a '/'"
 #define e_COORD_VARNO	"wrong number of coordinate variables"
+#define e_COORD_NVAR	"natural coordinates need exactly four variables; list them before a '/'"
 #define e_COORD_SIMP	"the expression simplifies to 0"
 #define e_MDEF_NAME	"macro definition starts with the macro name followed by '('"
 #define e_MDEF_NOPAR	"missing argument: a single variable is expected here"
@@ -144,8 +137,6 @@ inline static void adjust_error_position(int d)
 
 #define e_SIMPLIFIES_EQ	"the expression simplifies to '0=0', thus it is always TRUE"
 #define e_SIMPLIFIES_GE	"the expression simplifies to '0<=0', thus it is always TRUE"
-#define e_POSCOMBINATION "the expression is TRUE as a positive combination of entropy values"
-#define e_SINGLE_TERM	"the expression simplifies to a single term, no check is performed"
 
 /***********************************************************************
 * dynamic error message; the actual message depends on the argument
@@ -153,7 +144,7 @@ inline static void adjust_error_position(int d)
 *   multiple times, so the first message is kept.
 */
 static char* e_FUNCTIONOF(int i){
-static char buf1[80],buf2[10]; char *txt;
+static char buf1[90],buf2[15]; char *txt;
     if(syntax_error.harderrstr) return "-";
     switch(i){
         case 0: txt="first"; break;
@@ -1325,9 +1316,14 @@ int parse_entropy (const char *str, int keep)
     if(entropy_expr.n==0){
         return entropy_expr.type==ent_eq? PARSE_EQ : PARSE_GE;
     }
-    must_show(non_trivial_expr(),e_POSCOMBINATION);
-    must_show(entropy_expr.n>1,e_SINGLE_TERM);
-    return (syntax_error.softerrstr||syntax_error.harderrstr) ? PARSE_ERR : PARSE_OK;
+    if(!non_trivial_expr()) return PARSE_POS;
+    // a single term c*H(X) is not identically zero; without constraints
+    // c*H(X)>=0 (c<0) and c*H(X)=0 are false. With constraints use the LP.
+    if(entropy_expr.n==1 && !keep){
+        if(entropy_expr.type==ent_ge) return PARSE_FALSE;
+        return entropy_expr.item[0].coeff>0.0 ? PARSE_ONLYGE : PARSE_ONLYLE;
+    }
+    return PARSE_OK;
 }
 
 int parse_diff(const char *str)
@@ -1580,6 +1576,8 @@ int parse_conv(const char *str, int maxvar)
     defpos=X_pos; 
     parse_entropyexpr(str+defpos,1,type);
     must(entropy_expr.n>0,e_COORD_SIMP);
+    // without a variable list the expression must have exactly maxvar variables
+    must(maxvar==0 || type!=expr_coord || id_table_idx==maxvar,e_COORD_NVAR);
     adjust_error_position(defpos); // in case of an error
     return(syntax_error.softerrstr|| syntax_error.harderrstr)? PARSE_ERR : PARSE_OK;
 }

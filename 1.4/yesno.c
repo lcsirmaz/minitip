@@ -3,7 +3,7 @@
 /***********************************************************************
 * This code is part of MINITIP (a MINimal Information Theoretic Prover)
 *
-* Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
+* Copyright (2016-2024) Laszlo Csirmaz, github.com/lcsirmaz/minitip
 *
 * This program is free, open-source software. You may redistribute it
 * and/or modify under the terms of the GNU General Public License (GPL).
@@ -13,15 +13,19 @@
 
 
 #include <readline/readline.h>
+#include <stdio.h>
 #include <stdlib.h>
-//#include <stdio.h>
+#include <string.h>
+#include <strings.h>
+#include <stdarg.h>
 #include <unistd.h>
 
 /***********************************************************************
 * Reading a single y/n answer from the terminal
 *
-*  int yesno(int force)
-*    read a yes/no answer  If force!=0 insist on getting one of them
+*  int yesno(int force, const char *fmt, ...)
+*    read a yes/no answer  If force!=0 insist on getting one of them;
+*    " (y/n)? " is appended to the prompt. End of input counts as no.
 *  return value: 1 - yes; 0 - no.
 */
 
@@ -48,17 +52,19 @@ static char **yesno_completion(const char *text, int start, UNUSED int end)
   return matches;
 }
 
-
-int yesno(int force)
+/* first prompt: argument, next: enter y/n */
+int yesno(int force,const char *fmt, ...)
 {rl_completion_func_t *ocomp;
- int prompted;
- char *line; int res=-1;
+ char *line; int res=-1; char buff[1024]; va_list ap;
+ char *prompt;
+    va_start(ap,fmt); vsnprintf(buff,sizeof(buff)-10,fmt,ap); va_end(ap);
+    strcat(buff," (y/n)? "); prompt=&buff[0];
     ocomp=rl_attempted_completion_function;
     rl_attempted_completion_function=yesno_completion;
-    prompted=rl_already_prompted; rl_already_prompted=1;
     while(res<0){
-        line=readline("Please enter 'y' or 'n' (y/n)? ");
-        if(!line){printf("\n"); continue;}
+        line=readline(prompt);
+        prompt="Please enter 'y' or 'n' (y/n)? ";
+        if(!line){ printf(" no\n"); res=0; break; } /* EOF: no */
         if(strlen(line)<5){
            if(line[0]=='y'||line[0]=='Y'){ res=1; }
            else if(line[0]=='n'||line[0]=='N'){ res=0; }
@@ -66,9 +72,8 @@ int yesno(int force)
               res=0; printf(" no\n");
            }
         }
-        free(line); rl_already_prompted=prompted;
+        free(line);
     }
-    rl_already_prompted=prompted;
     rl_attempted_completion_function=ocomp;
     return res;
 }

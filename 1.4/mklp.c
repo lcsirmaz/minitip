@@ -3,7 +3,7 @@
 /***********************************************************************
 * This code is part of MINITIP (a MINimal Information Theoretic Prover)
 *
-* Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
+* Copyright (2016-2024) Laszlo Csirmaz, github.com/lcsirmaz/minitip
 *
 * This program is free, open-source software. You may redistribute it
 * and/or modify under the terms of the GNU General Public License (GPL).
@@ -289,6 +289,31 @@ static void add_constraint(int col,int idx,int next_expr(int))
     xassert(idx!=idx);
 }
 
+/* A single final variable: every term is c*x with x=H(all)>=0, thus each
+   expression is s*x where s is the sum of its coefficients. Decide the
+   problem without calling the LP solver. A Markov chain gives 0=0. */
+#define EPS	1e-9
+static double coeff_sum(void)
+{int i; double s=0.0;
+    for(i=0;i<entropy_expr.n;i++) s+=entropy_expr.item[i].coeff;
+    return s;
+}
+static char *single_variable(int constraints, int next_expr(int))
+{int i,zero; double s;
+    zero=0; // set when the constraints force x=0
+    for(i=0;next_expr(i)==0;i++){
+        if(entropy_expr.type==ent_Markov) continue;
+        s=coeff_sum();
+        if(s<-EPS || (entropy_expr.type==ent_eq && s>EPS)) zero=1;
+    }
+    if(constraints) next_expr(-1); // reload the expression to be checked
+    if(zero) return EXPR_TRUE;
+    s=coeff_sum();
+    if(entropy_expr.type==ent_ge) return s>-EPS ? EXPR_TRUE : EXPR_FALSE;
+    return s>EPS ? EQ_GE_ONLY : s<-EPS ? EQ_LE_ONLY : EXPR_TRUE;
+}
+#undef EPS
+
 /* call the LP solver; mult is either +1.0 or -1.0 */
 static char *invoke_lp(void)
 {int glp_res;
@@ -322,6 +347,7 @@ char *call_lp(int next_expr(int), int iterlimit, int timelimit)
     }
     /* figure out final variables, rows, cols, number of Shannon */
     if(do_variable_assignment()){ // number of variables is less than 2
+        if(var_no==1) return single_variable(constraints,next_expr);
         return "number of final random variables is less than 2";
     }
     /* get memory for row and column permutation */

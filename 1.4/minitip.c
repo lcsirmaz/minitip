@@ -3,7 +3,7 @@
 /***********************************************************************
  * This code is part of MINITIP (a MINimal Information Theoretic Prover)
  *
- * Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
+ * Copyright (2016-2026) Laszlo Csirmaz, github.com/lcsirmaz/minitip
  *
  * This program is free, open-source software. You may redistribute it
  * and/or modify under the terms of the GNU General Public License (GPL).
@@ -14,17 +14,18 @@
 /* Version and copyright */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	4
-#define VERSION_SUB	7
+#define VERSION_SUB	9
 #define VERSION_STRING	mkstringof(VERSION_MAJOR.VERSION_MINOR.VERSION_SUB)
 
 #define COPYRIGHT	\
-"Copyright (C) 2016-2021 Laszlo Csirmaz, Central European University, Budapest"
+"Copyright (C) 2016-2026 Laszlo Csirmaz, https://github.com/lcsirmaz/minitip"
 
 /*----------------------------------------------------------------------------*/
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "minitip.h"
 #include "parser.h"
@@ -32,7 +33,7 @@
 
 /* forward declarations */
 static void check_expression(const char *src, int with_constraints);
-extern int yesno(int);
+extern int yesno(int,const char *fmt, ...);
 static int get_param(const char *str);
 static void set_param(const char *str,int value);
 #define UNUSED __attribute__((unused)) 
@@ -186,6 +187,9 @@ static int read_batch_line(FILE *f)
      case '\b':   if(pos>0) pos--; break;
      case '\n':   batch_line[pos]=0; return 0;
      case '\t':   c=' '; /* and fall through */
+#ifdef __GNUC__
+                  __attribute__((fallthrough));
+#endif
      default:     batch_line[pos]=c; 
                   if(pos<minitip_MAX_LINE_LENGTH) pos++;
                   else return 1; /* too long line */
@@ -290,12 +294,12 @@ static COMMAND commands[] = {
 {"check",  com_check, 0, pm_help,   NULL,	"check entropy relation with constraints" },
 {"test",   com_check, 0, pm_help,   NULL,	"synonym for 'check'" },
 {"xcheck", com_nocon, 0, pm_help,   NULL,	"check entropy relation without constraints" },
-{"add",	   com_add,   0, pm_help,   NULL,	"add new constraint" },
-{"list",   com_list,  0, pm_list,   NULL,	"list all or specified constraints: 3,5-7"},
-{"del",	   com_del,   0, pm_help,   NULL,	"delete numbered constraint"},
-{"unroll", com_diff,  0, pm_help,   NULL,	"print missing entropy terms on RHS"},
-{"ext",    com_ext,   0, pm_help,   NULL,	"convert to extended information measures"},
-{"nat",    com_nat,   0, pm_help,   NULL,	"convert to natural coordinates"},
+{"add",	   com_add,   0, pm_help,   NULL,	"add a constraint, see 'syntax constraint'" },
+{"list",   com_list,  0, pm_list,   NULL,	"list specified constraints, see 'list help'"},
+{"del",	   com_del,   0, pm_help,   NULL,	"delete specified constraints, see 'del help'"},
+{"unroll", com_diff,  0, pm_help,   NULL,	"calculate missing entropy terms"},
+{"ext",    com_ext,   0, pm_help,   NULL,	"convert to information measures; see 'syntax ext'"},
+{"nat",    com_nat,   0, pm_help,   NULL,	"convert to natural coordinates, see 'syntax nat'"},
 {"macro",  com_macro, 0, pm_macro,  NULL,	"add, list, delete macros"},
 {"run",    com_batch, 1, NULL,      NULL,	"execute commands from a file"},
 {"style",  com_style, 0, pm_style,  NULL,	"show / change formula style"},
@@ -353,7 +357,7 @@ static char *pm_syntax(const char *txt, int state)
 {static int list_index=0; const char *name;
  static const char *syntaxargs[]={
   "style","variable","entropy","expression","measure","relation",
-  "constraint","macro","unroll","convert",NULL };
+  "constraint","macro","unroll","convert","ext","nat",NULL };
     if(!state){ list_index=0; }
     while((name=syntaxargs[list_index])!=NULL){
         list_index++;
@@ -505,6 +509,8 @@ static int execute_cmd(char *text,const char *line)
     if(('a'<=text[i]&& text[i]<='z')||('A'<=text[i]&&text[i]<='Z')){
         if(line)printf("%s\n",line);
         printf(" Unknown command; enter '?' for a list of commands\n");
+        if(strpbrk(text+i,"=<>")) // looks like a relation
+            printf(" To check an expression starting with a letter, use 'check <expression>'\n");
         return 1;
     }
     // if no = sign, do nothing ...
@@ -638,8 +644,7 @@ static int com_quit(const char *arg, const char *line)
         if(get_param("save")==1){ c=1; }
         else if(get_param("save")==2){ c=0; }
         else { // ask yes/no
-          printf("Save commands to the history file %s (y/n)? ",HISTORY_FILE);
-          c=yesno(1);
+          c=yesno(1,"Save commands to the history file %s",HISTORY_FILE);
         }
        done=1;
        if(c!=0) write_history(HISTORY_FILE);
@@ -651,7 +656,7 @@ static int com_quit(const char *arg, const char *line)
 /** SYNTAX  -- give help on syntax of different constructs **/
 static int com_syntax(const char *argv, const char *line)
 /** style / variable / entropy / expression / relation / constraint / 
-    macro / unroll / measure / convert **/
+    macro / unroll / measure / convert / ext / nat **/
 {
 /** STYLE **/
     if(strncasecmp(argv,"style",3)==0){ // on style
@@ -733,7 +738,7 @@ static int com_syntax(const char *argv, const char *line)
         return 0;
     }
 /** MEASURES **/
-    if(strncasecmp(argv,"measure",4)==0){ // measure
+    if(strncasecmp(argv,"measure",4)==0 || strncmp(argv,"ext",3)==0){ // measure
         printf(
 " Next to the usual Shannon entropy measures, extended (unconditional\n"
 " and conditional) information measures are recognized as well:\n");
@@ -751,7 +756,9 @@ static int com_syntax(const char *argv, const char *line)
 ".  I(A;B;C;D|X) for I(A;B;C|X)-I(A;B;C|D,X), etc,\n");
         printf(
 " up to depth " mkstringof(minitip_MAX_MEASURE_DEPTH) ".\n"
-" To disable this feature enter 'set measure=false'.\n");
+" To disable this feature enter 'set measure=false'.\n"
+" To convert an expression using extended measures use the syntax\n"
+"   ext <expression>\n");
         return 0;
     }
 /** MACRO **/
@@ -804,7 +811,8 @@ static int com_syntax(const char *argv, const char *line)
         return 0;
     }
 /** RELATION **/
-    if(strncasecmp(argv,"relation",3)==0){ //formula description
+    if(strncasecmp(argv,"relation",3)==0 || strncasecmp(argv,"check",3)==0
+       || strncasecmp(argv,"test",3)==0){ //formula description
         printf(
 " A RELATION compares two entropy =>expressions using = (equal),\n"
 " <= (less than or equal) or >= (greater than or equal) as in\n");
@@ -862,7 +870,7 @@ static int com_syntax(const char *argv, const char *line)
 "         ==> -a-b-c+2ab+2ac+2bc-3abc\n",minitip_sepchar);
         else printf(
 // full style
-"        unroll I(A;B|C)+I(B;C|A)+I(C;A|B) =='\n"
+"        unroll I(A;B|C)+I(B;C|A)+I(C;A|B) ==\n"
 " Result:\n"
 "         ==> -H(A)-H(B)-H(C)+2H(A,B)+2H(A,C)+2H(B,C)-3H(A,B,C)\n");
         printf(
@@ -871,13 +879,12 @@ static int com_syntax(const char *argv, const char *line)
         return 0;
     }
 /* CONVERT */
-    if(strncmp(argv,"convert",3)==0){ // convert
+    if(strncmp(argv,"convert",3)==0 || strncmp(argv,"nat",3)==0){ // convert
         printf(
-" The entropy =>expression is converted using (extended) information\n"
-" measures, or natural coordinates. The expression can optionally be\n"
-" preceeded by a list of =>variables determining the coordinates. The\n"
-" variable list and the expression is separated by a '/' character.\n"
-" Natural coordinates require exactly four variables. Example:\n");
+" The entropy =>expression is converted using natural coordinates. The\n"
+" expression can optionally be preceded by a list of =>variables determining\n"
+" the coordinates. The variable list and the expression is separated by a\n"
+" '/' character. Natural coordinates require exactly four variables. Example:\n");
         if(minitip_style==syntax_short) printf(
 // simple style
 "        nat u%1$cv%1$cx%1$cy / [v%1$cx%1$cu%1$cy]+uvx\n",minitip_sepchar);
@@ -902,7 +909,7 @@ static int com_syntax(const char *argv, const char *line)
 "        [A;B;C;D]\n"
 "        I(A;B|C), I(A;B|D), I(A;C|B), I(B;C|A), I(A;D|B), I(B;D|A)\n"
 "        I(C;D|A), I(C;D|B), I(C;D),   I(A;B|C,D)\n"
-"        H(A|B,C,D), H(B|A,C,D), H(C|A,B,D), H(D|B,C,D)\n");
+"        H(A|B,C,D), H(B|A,C,D), H(C|A,B,D), H(D|A,B,C)\n");
         return 0;
     }
     if(!line) /* only if online */
@@ -911,13 +918,13 @@ static int com_syntax(const char *argv, const char *line)
 "  style      -- choose between \"simple\" and \"full\" style\n"
 "  variables  -- random variables and sequences of random variables\n"
 "  entropy    -- entropy term syntax and shorthand\n"
-"  measure    -- extended entropy measures\n"
 "  macro      -- macros, what they are\n"
 "  expression -- linear combination of entropy terms and macros\n"
-"  relation   -- compare two expressions by =, <= or >=\n"
+"  relation   -- compare two expressions by =, <= or >= (also: check)\n"
 "  constraint -- syntax of constraints\n"
-"  unroll     -- calculate the missing terms on the right hand side\n"
-"  convert    -- show expression using measures or natural coords\n");
+"  unroll     -- calculating missing terms\n"
+"  ext        -- convert to extended entropy measures\n"
+"  nat        -- show expression using natural coordinates\n");
     return 0; /* OK */
 }
 /** ADD  -- add a constraint **/
@@ -1059,8 +1066,7 @@ static int com_del(const char *arg, const char *line)
     if(strcmp(arg,"all")==0){
         int c=1;
         if(!line){
-           printf(" All constraints (%d) will be deleted. Proceed (y/n)? ",constraint_no);
-           c=yesno(0);
+           c=yesno(0," All constraints (%d) will be deleted. Proceed",constraint_no);
         }
         if(c!=0){
            for(no=0;no<constraint_no;no++) free(constraint_table[no]);
@@ -1097,9 +1103,8 @@ static int com_style(const char *argv, const char *line)
                 printf(" Cannot change style to FULL when there are constraints.\n");
                 return 2; /* abort */
             }
-            printf(" Changing style will delete all constraints (%d). Proceed (y/n)? ",
-              constraint_no);
-            if(yesno(0)==0) return 1;
+            if(yesno(0," Changing style will delete all constraints (%d). Proceed",
+                constraint_no)==0) return 1;
             while(constraint_no>0){
                 constraint_no--; free(constraint_table[constraint_no]);
             }
@@ -1128,9 +1133,8 @@ static int com_style(const char *argv, const char *line)
                 printf(" Cannot change style to SIMPLE when there are constraints.\n");
                 return 2; /* abort */
             }
-            printf(" Changing style will delete all constraints (%d). Proceed (y/n)? ",
-              constraint_no);
-            if(yesno(0)==0) return 1;
+            if(yesno(0," Changing style will delete all constraints (%d). Proceed",
+                constraint_no)==0) return 1;
             while(constraint_no>0){
                 constraint_no--; free(constraint_table[constraint_no]);
             }
@@ -1560,8 +1564,7 @@ static int com_save(const char *arg, const char *line)
     if(*arg==0){
         filename = HISTORY_FILE;
         if(!line){
-          printf("Save command history to %s (y/n)? ",filename);
-          if(yesno(1)==0) return 0;
+          if(yesno(1,"Save command history to %s",filename)==0) return 0;
           filename = strdup(HISTORY_FILE);
         }
     } else if(!(filename=prepare_filename(arg))){
@@ -1679,6 +1682,21 @@ static int com_batch(const char *arg,const char *line)
 #define res_ONLYGE	"    ==> FALSE, only >= is true"
 #define res_ONLYLE	"    ==> FALSE, only <= is true"
 #define res_CONSTR	" with the constraints"
+#define res_TRUEPOS	"    ==> TRUE, positive combination of entropies"
+#define res_FALSE1	"    ==> FALSE, single entropy term"
+
+/* result of parse_entropy() decided without the LP, or NULL */
+static const char *parse_result(int parse)
+{   switch(parse){
+      case PARSE_EQ:     return res_TRUEEQ;
+      case PARSE_GE:     return res_TRUEGE;
+      case PARSE_POS:    return res_TRUEPOS;
+      case PARSE_FALSE:  return res_FALSE1;
+      case PARSE_ONLYGE: return res_ONLYGE;
+      case PARSE_ONLYLE: return res_ONLYLE;
+    }
+    return NULL;
+}
 
 /** CHECK -- check entropy relation with all constraints **/
 
@@ -1700,14 +1718,8 @@ static int com_check(const char *line, const char *orig)
           return 1;
     }
     if(orig) printf("%s\n",orig);
-    switch(parse){
-      case PARSE_EQ:
-          printf(res_TRUEEQ "\n"); break;
-      case PARSE_GE:
-          printf(res_TRUEGE "\n"); break;
-      default:
-          check_expression(line,1); break;
-    }
+    if(parse_result(parse)) printf("%s\n",parse_result(parse));
+    else check_expression(line,1);
     return 0; /* OK */
 }
 
@@ -1726,16 +1738,12 @@ static int com_nocon(const char *line, const char *orig)
         return 1;
     }
     if(orig) printf("%s\n",orig);
-    switch(parse){
-      case PARSE_EQ:
-         printf(res_TRUEEQ "\n"); break;
-      case PARSE_GE:
-         printf(res_TRUEGE "\n"); break;
-      default:
+    if(parse_result(parse)) printf("%s\n",parse_result(parse));
+    else {
          if(constraint_no>0){
            printf("Checking without constraints ...\n");
          }
-         check_expression(line,0); break;
+         check_expression(line,0);
     }
     return 0;
 }
@@ -1764,7 +1772,7 @@ static int com_ext(const char *line, const char *orig)
     if(!*line || *line=='?' || strcmp(line,"help")==0){
         if(!orig)
             printf(" Convert the entropy expression using extended measures.\n"
-                   " Enter 'syntax convert' for more help.\n");
+                   " Enter 'syntax ext' for more help.\n");
         return 0;
     }
     if(parse_conv(line,0)!=PARSE_OK){ /* some error */
@@ -1780,7 +1788,8 @@ static int com_nat(const char *line, const char *orig)
     if(!*line || *line=='?' || strcmp(line,"help")==0){
         if(!orig)
             printf(" Convert the entropy expression using natural coordinates.\n"
-                   " Enter 'syntax convert' for more help.\n");
+                   " Usage: <base variables> / <expression>\n"
+                   " Enter 'syntax nat' for more help.\n");
         return 0;
     }
     if(parse_conv(line,4)!=PARSE_OK){ /* some error */
@@ -1885,6 +1894,7 @@ static int check_offline(int argc, char *argv[], int quiet)
              if(!quiet) error_message(argv[0]);
              return EXIT_SYNTAX;
           }
+          if(!quiet) printf("%s\n ==> ",argv[0]);
           print_expression(); printf("\n");
           return EXIT_TRUE;
        }
@@ -1913,15 +1923,10 @@ static int check_offline(int argc, char *argv[], int quiet)
         if(!quiet) error_message(argv[0]);
         return EXIT_SYNTAX; // syntax error
     }
-    switch(parse){
-      case PARSE_EQ:
-        if(!quiet) printf(res_TRUEEQ "\n");
-        return EXIT_TRUE;
-      case PARSE_GE:
-        if(!quiet) printf(res_TRUEGE "\n");
-        return EXIT_TRUE;
-      default:
-        break;
+    if(parse_result(parse)){
+        if(!quiet) printf("%s\n%s\n",argv[0],parse_result(parse));
+        return parse==PARSE_EQ || parse==PARSE_GE || parse==PARSE_POS ?
+               EXIT_TRUE : EXIT_FALSE;
     }
     return check_offline_expression(argv[0],quiet);
 }
@@ -1979,6 +1984,18 @@ static int execute_minitiprc(int complain)
        }
     }
     return execute_batch_file(rcfile)? 1 : 0;
+}
+
+/***********************************************************************
+* int is_cmdline_expression(const char *arg)
+*    an argument starting with '-' is an expression and not a flag if it
+*    contains '<', '>' or '=='; or it contains '=' and is not -m or -f
+*    (macro definitions and file names can contain '=')
+*/
+static int is_cmdline_expression(const char *arg)
+{   if(strlen(arg)<4) return 0;
+    if(strpbrk(arg,"<>") || strstr(arg,"==")) return 1;
+    return strchr(arg,'=') && arg[1]!='m' && arg[1]!='f';
 }
 
 /***********************************************************************
@@ -2044,6 +2061,7 @@ int main(int argc, char *argv[])
     /* argument handling */
     quietflag=0; endargs=0; styleset=0; rcfile=0; histfile=NULL;
     for(i=1; i<argc && endargs==0 && argv[i][0]=='-';i++){
+        if(is_cmdline_expression(argv[i])) break; // starts with '-', not a flag
         switch(argv[i][1]){
       case 'h': short_help(); return EXIT_INFO;
       case 'v': print_version(argv[i][2]); return EXIT_INFO;
@@ -2130,7 +2148,7 @@ int main(int argc, char *argv[])
               if(constraint_no==1)
                 printf("Deleting the constraint as it was");
               else
-                printf("Deleteting all (%d) constraints as they were",constraint_no);
+                printf("Deleting all (%d) constraints as they were",constraint_no);
               printf(" entered in different style\n");
             }
             while(constraint_no>0){
@@ -2151,7 +2169,9 @@ int main(int argc, char *argv[])
     for(done=0;!done;){
         line=readline(minitip_PROMPT);
         if(!line){ /* ^D at the beginning of line */
-            printf("\n"); continue;
+            printf("\n");
+            if(!isatty(fileno(stdin))) break; /* end of piped input */
+            continue;
         }
         extract_randomness(line);
         execute_cmd(line,NULL);

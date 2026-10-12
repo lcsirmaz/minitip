@@ -3,7 +3,7 @@
 /***********************************************************************
 * This code is part of MINITIP (a MINimal Information Theoretic Prover)
 *
-* Copyright (2016) Laszlo Csirmaz, Central European University, Budapest
+* Copyright (2016-2024) Laszlo Csirmaz, github.com/lcsirmaz/minitip
 *
 * This program is free, open-source software. You may redistribute it
 * and/or modify under the terms of the GNU General Public License (GPL).

@@ -1,0 +1,66 @@
+1.4.9
+Correcting some misprints; changing behavior when the expression has a
+single letter only; correcting many y/n prompts; ^D (and EOF) is taken
+as "no".
+
+1.4.8
+Changing the copyright information; improving help
+
+1.4.71
+Modifying the yes/no logic: readline requires the exact prompt
+(from readline version 8.1)
+
+1.4.7
+Handle yes/no answers by readline (need to hit enter) - corrected
+bugfix: save command without arguments give double free()
+
+1.4.6
+add conversion commands "ext" and "nat" to convert an expression
+to I-measures, and natural coordinates, respectively. Tidy up
+some help text, mainly using one space indent.
+
+1.4.5
+allow curly braces {} to group entropy terms; change some
+documentation.
+
+1.4.4
+allow additional information measures entered as
+  (a,b,c,d), or just (a,b,c,d|x)
+(simple style) or
+  I(A;B;C;D)  or I(A;B;C;D|X)
+(full style) to be defined as
+  -\sum { (-1)^|A| H(AX): A is a subset of abcd }
+new parameter:
+  measure = yes/no (allow the above information measure shorthand)
+add "a << b" as a new form of functional dependency
+change the term "zap" to "unroll"
+
+1.4.3
+complain if '-c <file>' used but the <file> is not found
+allow == as offline argument
+set cmdarg_position when in offline mode (bugfix)
+
+1.4.2
+changing the printout when the expression simplifies to 0=0
+improved help (e.g., "save <file>")
+the rc file is processed for non-interactive usage as well
+additional command-line arguments:
+   -m <macrodef> define this macro
+   -c-           don't read .minitiprc
+   -c <file>     init file replacing .minitiprc
+
+1.4.1
+additional run time parameters under "set"
+  constrlimit  = maximal number of constraints
+  macrolimit   = maximal number of macros
+  run       = strict/loose: how to handle errors (continue with non-fatal errors)
+  comment   = yes/no (print comments from run file)
+  abbrev    = yes/no (allow abbreviated commands)
+  save      = yes/no/ask (save history at exit)
+  simplevar = basic/extended (allow letter plus digits in simple style)
+  history   = default ".minitip" history file
+
+additional command: save - save history
+
+If .minitiprc found, it is executed as a run file. It is searched in
+the working directory, then in the home directory.
